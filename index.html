@@ -336,10 +336,48 @@ body.menu-open .input-container {
   font-weight: 500;
 }
 
+
+/* Nuovo rettangolo "Scrivere uguale" */
+.writing-rect {
+  position: absolute;
+  top: 35%; /* Posizionato sopra il centro */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #f2f2f7;
+  color: #3a3a3c;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  z-index: 20003;
+  transition: opacity 0.2s;
+}
+
+/* Linea nera di collegamento */
+.connect-line {
+  position: absolute;
+  top: 35%; 
+  left: 50%;
+  width: 1.5px;
+  height: 20%; /* Lunghezza che arriva fino al rettangolo sotto */
+  background-color: #000;
+  transform: translateX(-50%);
+  z-index: 20001;
+}
+
+/* Feedback al tocco */
+.writing-rect:active {
+  opacity: 0.7;
+}
+
+
 /* Stile per il rettangolo grigio "Ritaglio Foto" */
 .photo-crop-btn {
   position: absolute;
-  top: 50%; /* Lo centra verticalmente nel rettangolo bianco */
+  top: 55%; /* Lo centra verticalmente nel rettangolo bianco */
   left: 50%; /* Lo centra orizzontalmente */
   transform: translate(-50%, -50%); /* Correzione centratura */
   
@@ -552,10 +590,17 @@ body.menu-open .input-container {
   </div>
 
   <div class="dashboard-rect">
-      <div class="photo-crop-btn" onclick="loadPhotoCropApp()">
-          Ritaglio Foto
-      </div>
-  </div>
+    <div class="writing-rect" onclick="loadWritingApp()">
+        Scrivere
+    </div>
+    
+    <div class="connect-line"></div>
+
+    <div class="photo-crop-btn" onclick="loadPhotoCropApp()">
+        Ritaglio Foto
+    </div>
+</div>
+
 
 
   <div class="scene" id="ballScene">
@@ -1339,6 +1384,12 @@ function closeAppMenu() {
     document.getElementById('mainHeader').style.opacity = '1';
     if (headerTrigger) headerTrigger.style.visibility = "visible";
 }
+
+function loadWritingApp() {
+    // Reindirizza al file index3.html
+    window.location.href = "index3.html";
+}
+
 
 
   </script>
