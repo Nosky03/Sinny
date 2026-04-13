@@ -154,26 +154,44 @@
         finalImg.classList.remove('ai-active');
     });
 
-    function eseguiRitaglioAutomatico() {
-        // Simulazione: Ritagliamo un rettangolo centrale (dove di solito sta il soggetto)
+       function eseguiRitaglioAutomatico() {
+        // 1. Prepariamo un canvas per gestire la trasparenza (Subject Lift)
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        
-        // Calcoliamo un'area centrale simulata
         const w = finalImg.naturalWidth;
         const h = finalImg.naturalHeight;
         
-        tempCanvas.width = w * 0.6;
-        tempCanvas.height = h * 0.6;
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+
+        // 2. Creiamo una maschera ellittica (simula l'IA che isola il centro)
+        tempCtx.save();
+        tempCtx.beginPath();
+        tempCtx.ellipse(w/2, h/2, w/3, h/2.5, 0, 0, Math.PI * 2);
+        tempCtx.clip(); 
+
+        // 3. Disegniamo l'immagine (solo la parte nell'ellisse verrà mantenuta)
+        tempCtx.drawImage(finalImg, 0, 0, w, h);
+        tempCtx.restore();
+
+        // 4. Applichiamo l'immagine con sfondo trasparente (PNG)
+        finalImg.src = tempCanvas.toDataURL('image/png');
         
-        tempCtx.drawImage(finalImg, w*0.2, h*0.2, w*0.6, h*0.6, 0, 0, tempCanvas.width, tempCanvas.height);
+        // 5. Animazione di "distacco" dal fondo
+        finalImg.style.transform = "scale(1.08)";
+        finalImg.style.filter = "drop-shadow(0 20px 40px rgba(0,0,0,0.4))";
         
-        finalImg.src = tempCanvas.toDataURL();
-        finalImg.classList.remove('ai-active');
+        setTimeout(() => {
+            finalImg.style.transform = "scale(1)";
+            finalImg.classList.remove('ai-active');
+        }, 500);
+
+        // Reset UI
         modeRA = false;
         document.getElementById('btn-ra').style.background = 'white';
         document.getElementById('btn-ra').style.color = '#007AFF';
     }
+
 
     // --- FUNZIONI CAM E GALLERIA (Invariate) ---
     async function attivaCam() {
