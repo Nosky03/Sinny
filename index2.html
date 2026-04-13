@@ -3,24 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sinny Cam UI</title>
+    <title>Sinny Cam UI - Crop Edition</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: white; font-family: -apple-system, sans-serif; }
         
         #app { display: flex; height: 100vh; width: 100vw; }
         
-        /* Sidebar laterale */
         .sidebar { 
-            width: 80px; 
-            background: #f2f2f7; 
-            border-right: 1px solid #d1d1d6; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center; 
-            z-index: 2000; 
-            gap: 20px;
+            width: 80px; background: #f2f2f7; border-right: 1px solid #d1d1d6; 
+            display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; z-index: 2000; gap: 20px;
         }
 
         .btn-side { 
@@ -29,82 +22,47 @@
             justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* Area Principale - La foto riempie TUTTO lo spazio */
-        .viewport { 
-            flex: 1; 
-            background: white; 
-            position: relative; 
-            overflow: hidden;
-        }
+        .viewport { flex: 1; background: white; position: relative; overflow: hidden; }
 
-        #final-photo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Riempie tutto lo spazio bianco */
-            display: none;
-        }
+        /* La foto finale e il canvas per ritagliare */
+        #final-photo { width: 100%; height: 100%; object-fit: cover; display: none; }
+        #crop-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: none; cursor: crosshair; }
 
-        /* Overlay Fotocamera tutto schermo */
+        /* Overlay Fotocamera */
         .full-screen-cam {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 3000;
-            background: #000;
-            display: none;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 3000; background: #000; display: none;
         }
         
-        video, #preview-canvas { 
-            width: 100%; height: 100%; object-fit: cover; 
-            position: absolute; top: 0; left: 0;
-        }
+        video, #preview-canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
-        /* Controlli Verticali a Destra (✓ sopra, ↺ sotto) */
         .controls { 
-            position: absolute; 
-            right: 20px; 
-            top: 50%;
-            transform: translateY(-50%);
-            display: none; 
-            flex-direction: column;
-            gap: 25px; 
-            z-index: 3100; 
+            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+            display: none; flex-direction: column; gap: 25px; z-index: 3100; 
         }
 
         .btn-ui { 
-            width: 65px; /* Più piccoli dello scatto */
-            height: 65px; 
-            border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; 
-            font-size: 28px; color: white; border: none; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            cursor: pointer;
+            width: 65px; height: 65px; border-radius: 50%; display: flex; 
+            align-items: center; justify-content: center; font-size: 28px; 
+            color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
         }
-        .ok { background: #34c759; order: 1; } /* ✓ sopra */
-        .retry { background: #ff3b30; order: 2; } /* ↺ sotto */
+        .ok { background: #34c759; order: 1; }
+        .retry { background: #ff3b30; order: 2; }
 
-        /* Pulsante di scatto */
         #shutter { 
-            position: absolute; 
-            right: 20px; 
-            top: 50%; 
-            transform: translateY(-50%);
-            width: 85px; height: 85px; 
-            border-radius: 50%; border: 6px solid white; 
-            background: rgba(255,255,255,0.2);
-            display: none; z-index: 3050; cursor: pointer;
+            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
+            width: 85px; height: 85px; border-radius: 50%; border: 6px solid white; 
+            background: rgba(255,255,255,0.2); display: none; z-index: 3050;
         }
 
-        /* X per uscire */
         #exit-cam {
-            position: absolute; top: 40px; right: 20px;
-            width: 40px; height: 40px; display: none;
-            background: none; border: none; z-index: 3100;
+            position: absolute; top: 40px; right: 20px; width: 40px; height: 40px; 
+            display: none; background: none; border: none; z-index: 3100;
         }
         #exit-cam span { position: absolute; width: 30px; height: 3px; background-color: white; border-radius: 2px; }
         #exit-cam span:nth-child(1) { transform: rotate(45deg); }
         #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
 
-        /* Input galleria nascosto */
         #gallery-input { display: none; }
     </style>
 </head>
@@ -113,29 +71,28 @@
 <div id="app">
     <div class="sidebar">
         <div class="btn-side" onclick="attivaCam()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                <circle cx="12" cy="13" r="4"></circle>
-            </svg>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </div>
         <div class="btn-side" onclick="document.getElementById('gallery-input').click()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        </div>
+        <div class="btn-side" onclick="attivaRitaglio()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 2L3 5l12 12h3l3-3V11L6 2z"></path>
+                <line x1="14.5" y1="6.5" x2="17.5" y2="9.5"></line>
+                <line x1="3" y1="21" x2="15" y2="9"></line>
             </svg>
         </div>
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
-    <div class="viewport">
+    <div class="viewport" id="viewport">
         <img id="final-photo">
+        <canvas id="crop-canvas"></canvas>
     </div>
 
     <div id="cam-overlay" class="full-screen-cam">
-        <button id="exit-cam" onclick="chiudiCam()">
-            <span></span><span></span>
-        </button>
+        <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
         <video id="v" playsinline autoplay muted></video>
         <canvas id="preview-canvas" style="display:none;"></canvas>
         <div id="shutter" onclick="scatta()"></div>
@@ -154,7 +111,13 @@
     const overlay = document.getElementById('cam-overlay');
     const exitBtn = document.getElementById('exit-cam');
     const finalImg = document.getElementById('final-photo');
+    const cropCanvas = document.getElementById('crop-canvas');
+    const ctxCrop = cropCanvas.getContext('2d');
 
+    let drawing = false;
+    let points = [];
+
+    // --- FUNZIONI CAM ---
     async function attivaCam() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
@@ -179,17 +142,6 @@
         ui.style.display = 'flex';
     }
 
-    function caricaImmagine(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            finalImg.src = e.target.result;
-            finalImg.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-
     function reset() {
         v.style.display = 'block';
         canvas.style.display = 'none';
@@ -207,6 +159,92 @@
     function chiudiCam() {
         if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
         overlay.style.display = 'none';
+    }
+
+    function caricaImmagine(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            finalImg.src = e.target.result;
+            finalImg.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- FUNZIONI RITAGLIO (CROP) ---
+    function attivaRitaglio() {
+        if (finalImg.style.display === 'none') {
+            alert("Scatta o carica prima una foto!");
+            return;
+        }
+        cropCanvas.width = finalImg.clientWidth;
+        cropCanvas.height = finalImg.clientHeight;
+        cropCanvas.style.display = 'block';
+        alert("Disegna sulla foto il pezzo da tenere!");
+    }
+
+    cropCanvas.addEventListener('touchstart', (e) => {
+        drawing = true;
+        points = [];
+        const rect = cropCanvas.getBoundingClientRect();
+        const x = e.touches[0].clientX - rect.left;
+        const y = e.touches[0].clientY - rect.top;
+        points.push({x, y});
+    });
+
+    cropCanvas.addEventListener('touchmove', (e) => {
+        if (!drawing) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const x = e.touches[0].clientX - rect.left;
+        const y = e.touches[0].clientY - rect.top;
+        points.push({x, y});
+
+        // Disegna linea tratteggiata mentre muovi il dito
+        ctxCrop.clearRect(0,0, cropCanvas.width, cropCanvas.height);
+        ctxCrop.beginPath();
+        ctxCrop.setLineDash([5, 5]);
+        ctxCrop.strokeStyle = "red";
+        ctxCrop.lineWidth = 3;
+        ctxCrop.moveTo(points[0].x, points[0].y);
+        for(let p of points) ctxCrop.lineTo(p.x, p.y);
+        ctxCrop.stroke();
+    });
+
+    cropCanvas.addEventListener('touchend', () => {
+        drawing = false;
+        eseguiRitaglio();
+    });
+
+    function eseguiRitaglio() {
+        if (points.length < 3) return;
+
+        // Creiamo un canvas temporaneo per calcolare il ritaglio
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = finalImg.naturalWidth;
+        tempCanvas.height = finalImg.naturalHeight;
+
+        // Calcoliamo la scala tra quello che vediamo a schermo e l'immagine reale
+        const scaleX = finalImg.naturalWidth / cropCanvas.width;
+        const scaleY = finalImg.naturalHeight / cropCanvas.height;
+
+        // Disegniamo la maschera basata sul tuo dito
+        tempCtx.beginPath();
+        tempCtx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
+        for(let p of points) tempCtx.lineTo(p.x * scaleX, p.y * scaleY);
+        tempCtx.closePath();
+        tempCtx.clip(); // Tutto quello fuori dal disegno viene rimosso
+
+        // Disegniamo l'immagine originale dentro la maschera
+        const img = new Image();
+        img.src = finalImg.src;
+        img.onload = () => {
+            tempCtx.drawImage(img, 0, 0);
+            finalImg.src = tempCanvas.toDataURL();
+            cropCanvas.style.display = 'none';
+            ctxCrop.clearRect(0,0, cropCanvas.width, cropCanvas.height);
+        };
     }
 </script>
 
