@@ -2,9 +2,8 @@ name: Update Sinny
 on:
   workflow_dispatch:
     inputs:
-      # GitHub riceve tutto il blocco JSON qui
-      client_payload:
-        description: 'Dati dai Comandi Rapidi'
+      file_content:
+        description: 'Dati JSON'
         required: true
 
 jobs:
@@ -13,16 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Create index and index2 files
+      - name: Create index files
         run: |
-          # Estraiamo i contenuti usando fromJson
-          echo "${{ fromJson(github.event.inputs.client_payload).index_content }}" | base64 --decode > index.html
-          echo "${{ fromJson(github.event.inputs.client_payload).index2_content }}" | base64 --decode > index2.html
+          # Leggiamo index_content e index2_content dal JSON inviato
+          echo "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
+          echo "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add index.html index2.html
-          git commit -m "Update multiple files from Shortcut"
+          git commit -m "Update from Shortcut"
           git push
