@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Sinny UI</title>
+<style>
+  /* Reset globale */
+  * { 
+    box-sizing: border-box; 
+    -webkit-tap-highlight-color: transparent; 
+    /* Blocca pinch-zoom e double-tap zoom sui browser moderni */
+    touch-action: pan-y; 
+  }
+  
+  input[type="text"], input[type="password"] { font-size: 17px !important; }
+
+  html, body {
+    background-color: white; margin: 0; padding: 0; width: 100%; 
+    height: 100dvh !important; overflow: hidden; display: flex; flex-direction: column; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    position: fixed;
+    /* Impedisce lo scroll di rimbalzo del body che a volte causa zoom */
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+  }
+
+  input { caret-color: black !important; }
+
+  /* --- HEADER --- */
+  .header {
+    width: 100%; height: 64px; position: fixed; top: 0; left: 0;
+    background-color: white; display: flex; justify-content: center; align-items: center; overscroll-behavior: none;
+    z-index: 9999; border-bottom: 0.3px solid rgba(0,0,0,0.08);
+  }
+
+  h1 { font-size: 24px; color: black; margin: 0; font-weight: 600; transition: transform 0.4s ease; }
+
+  .header-trigger { 
+    position: absolute; left: 20px; bottom: 24px; 
+    z-index: 10000; cursor: pointer; display: flex; flex-direction: column; gap: 5px; 
+  }
+  .header-trigger span { display: block; width: 18px; height: 2px; background-color: #000; border-radius: 2px; }
+
+  .menu-dots { 
+    position: absolute; right: 15px; bottom: 12px;
+    width: 30px; height: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+    z-index: 10000;
+  }
+  .menu-dots svg { transform: rotate(90deg); fill: black; width: 22px; height: 22px; }
+
+  /* TRASLAZIONE */
+  body.menu-open h1,
+  body.menu-open .chat-container, 
+  body.menu-open .input-container {
+    transform: translateX(4.3cm);
+  }
+
+  /* --- SIDEBAR --- */
+  .sidebar-left {
+    position: fixed; top: 22px; left: -100%; width: 23.5%; 
+    height: calc(100% - 32px); 
+    background: #ffffff; border: 0.5px solid rgba(209, 209, 214, 0.5);
+    border-right: none; border-left: none; border-bottom: none; border-top: none; border-radius: 14px 14px 14px 14px; 
+    transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 11000; 
+    filter: drop-shadow(0px 0px 12px rgba(0,0,0,0.10));
+    display: flex; flex-direction: column; gap: 10px; padding-top: 62px;
+  }
+  .sidebar-left.open { left: 11px; }
+
+  /* Lo sfondo che crea la "L" rovesciata */
+  .sidebar-shape {
+     position: absolute;
+     top: 0; left: 0; width: 100%; height: 100%;
+     z-index: -1; overflow: visible;
+  }
+
+  .sidebar-rect {
+    width: calc(100% - 4px); margin-left: 2px; height: 38px;
+    background-color: #f2f2f7; border-radius: 10px;
+    display: flex; align-items: center; padding-left: 10px;
+    font-size: 16px; color: black; font-weight: 500; cursor: pointer; gap: 10px;
+  }
+  .rect-distanced { margin-top: 20px; }
+
+  .sinny-icon {
+    width: 28px;
+    height: 28px;
+    stroke: black;
+    stroke-width: 1;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+/* BLOCCO MIRATO: CHAT RECENTI (Il testo che scappa) */
+    .sidebar-section-title {
+      /* Forza il testo a restare ancorato alla sidebar e non alla pagina */
+      position: relative !important; 
+      display: block !important;
+      /* Questo è il segreto: dice a Safari di non proiettare l'elemento fuori */
+      contain: paint !important; 
+      -webkit-transform: translateZ(0); 
+      font-size: 16px !important; /* Impedisce lo sbalzo hardware */
+      margin: 5px 0 10px 5px !important;
+      pointer-events: none !important; /* Evita che il tocco accidentale attivi lo scroll */
+      font-weight: 500;
+    }
+
+.recent-chat-item {
+  /* 1. LARGHEZZA: Usiamo calc per lasciare quel millimetro di respiro come in Sinny */
+  width: calc(100% - 1px); 
+  margin-left: 0px;        /* Centra il rettangolo perfettamente */
+  margin-Top: 10px;
+  height: 38px; 
+  background-color: #f2f2f7; 
+  border-radius: 10px;
+  display: flex; 
+  align-items: center; 
+  
+  /* 2. PADDING E FONT: Devono essere identici a .sidebar-rect */
+  padding: 0 14px;         
+  font-size: 16px;         /* Portato a 16px per pareggiare Sinny */
+  color: black;            /* Testo più deciso */
+  font-weight: 500;
+  
+  cursor: pointer;
+  white-space: nowrap; 
+  overflow: hidden; 
+  text-overflow: ellipsis;
+  margin-bottom: 8px; 
+  animation: slideIn 0.3s ease-out;
+}
+
+  @keyframes slideIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Creazione schermata per rettangolo Sinny */
+ #sinnyOverlay {
+   position: fixed;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 100%;
+   background-color: white;
+   z-index: 20000;
+   display: none;
+   flex-direction: column;
+ }
+
+ /* La x per chiudere */
+ .close-sinny {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 35px;
+    font-weight: 200;
+    cursor: pointer;
+    color: black;
+    padding: 10px;
+    line-height: 1;
+ }
+
+  /* Il Rettangolo Centrale Bianco */
+  .dashboard-rect {
+    position: absolute;
+    left: 20px; right: 20px;
+    top: 80px; 
+    bottom: 120px;
+    background-color: white; /* Bianco puro */
+    border: 1.5px solid #e5e5ea; /* Bordo sottile grigio */
+    border-radius: 24px;
+    z-index: 20002;
+  }
+
+  /* Sfera Mini */
+  .scene {
+    width: 45px; height: 45px;
+    position: absolute; z-index: 20005;
+    perspective: 1000px; pointer-events: none;
+    /* Transizione fluida per quando passa da fissa a movimento */
+    transition: transform 0.1s linear; 
+
+/* Posizionamento: 15px dal bordo destro e 15px dal basso del rettangolo */
+  right: 15px; 
+  bottom: 15px;
+
+  }
+  
+  .ball {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff, #f0f0f0 60%, #d1d1d1 100%);
+    position: relative; transform-style: preserve-3d;
+  }
+
+  .face-container {
+    position: absolute; width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    transform: translateZ(22px); backface-visibility: hidden;
+  }
+
+  .eye { width: 9px; height: 9px; background: #222; border-radius: 50%; position: absolute; }
+  .mouth-line { width: 28px; height: 2.5px; background: #222; border-radius: 2px; position: absolute; }
+
+.new-chat-circle {
+    width: 34px; height: 34px; background-color: #f2f2f7; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-left: 10px; cursor: pointer; border: 0.5px solid rgba(0,0,0,0.05);
+    color: black;
+  }
+
+.search-container { margin-left: -6px; width: 82%; position: relative; display: flex; align-items: center; }
+  .search-input {
+    width: 100%; padding: 10px 12px 10px 34px; background-color: #f2f2f7; 
+    border-radius: 20px; border: none; outline: none; font-size: 16px;
+  }
+  .search-icon { position: absolute; left: 6px; display: flex; align-items: center; }
+  .search-icon svg { width: 20px; height: 20px; }
+
+/* --- INPUT CONTAINER --- */
+  .input-container { 
+    width: 100%; /* Aumentato dal 53% per vederlo meglio, poi decidi tu */
+    margin: 0 auto; 
+    position: fixed; /* FONDAMENTALE: lo ancora allo schermo */
+   top: 0;
+    left: 0; 
+    right: 0; 
+    transition: all 0.4s ease; bottom 0.1s linear;
+    z-index: 2000;
+    background-color: white;
+    display: flex;
+    align-items: center;
+
+}
+
+/* Evita che Safari mostri la barra di scorrimento mentre trascini */
+::-webkit-scrollbar { display: none; }
+
+  /* Stile per la casella di testo */
+  .main-input {
+    width: 100%;
+    height: 48px;
+    padding: 0 50px 0 20px;
+    border: 1.5px solid #e5e5ea;
+    border-radius: 24px;
+    outline: none;
+    font-size: 16px;
+    background-color: #f2f2f7;
+    transition: border-color 0.3s;
+  }
+
+  .main-input:focus {
+    border-color: #000; /* Diventa nero quando scrivi */
+    background-color: #fff;
+  }
+
+  /* Stile per il tasto invio */
+  .send-btn {
+    position: absolute;
+    right: 8px;
+    width: 34px;
+    height: 34px;
+    background-color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+ /* Quando la tastiera è attiva, l'input sale, ma la sidebar resta dove deve */
+.input-container.keyboard-active { 
+  bottom: 10px; 
+}
+
+ /* Stile per il tasto X di chiusura sidebar (Spesso e Minimalista) */
+  .close-sidebar-btn {
+    position: absolute; 
+    right: -50px;       /* Leggermente più a destra per bilanciare lo spessore */
+    top: -45px;         /* Allineata verticalmente alla matita */
+    z-index: 5; 
+    cursor: pointer;
+    font-size: 35px;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    width: 42px;        /* Area di tocco leggermente più grande */
+    height: 42px;
+    background-color: transparent !important; 
+    box-shadow: none !important; 
+    border: none !important;
+  }
+
+/* --- CHAT CONTAINER UNIFICATO --- */
+.chat-container { 
+  width: 100%; 
+  position: fixed;           
+  top: 0; /* Deve partire da zero per calcolare bene il rect */
+  height: 100dvh;                   
+  display: flex; 
+  flex-direction: column;
+  overflow-y: scroll !important;
+  -webkit-overflow-scrolling: touch;
+  /* Padding: sopra 80px per l'header, sotto 72vh per l'effetto sparizione */
+  padding: 80px 23.5% 72vh 23.5%; 
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  box-sizing: border-box;
+  z-index: 1000;
+}
+
+/* --- CAMBIA DA 4.3cm A 165px --- */
+body.menu-open h1,
+body.menu-open .chat-container, 
+body.menu-open .input-container {
+  transform: translateX(165px) !important;
+}
+
+/* --- MESSAGGI --- */
+.message {
+  align-self: flex-end; 
+  background-color: #f2f2f7; 
+  color: black; 
+  padding: 10px 16px; 
+  border-radius: 18px; 
+  font-size: 16px; 
+  max-width: 100%;           
+  margin-bottom: 15px; 
+  word-wrap: break-word;
+  flex-shrink: 0;            
+}
+
+.message.sinny { 
+  align-self: flex-start; 
+  background-color: transparent; 
+  padding-left: 0; 
+  font-weight: 500;
+}
+
+/* Stile per il rettangolo grigio "Ritaglio Foto" */
+.photo-crop-btn {
+  position: absolute;
+  top: 50%; /* Lo centra verticalmente nel rettangolo bianco */
+  left: 50%; /* Lo centra orizzontalmente */
+  transform: translate(-50%, -50%); /* Correzione centratura */
+  
+  background-color: #f2f2f7; /* Grigio chiaro iOS */
+  color: #3a3a3c; /* Testo grigio scuro */
+  padding: 8px 16px;
+  border-radius: 12px; /* Bordi arrotondati */
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  
+  /* Opzionale: un leggero feedback al tocco */
+  transition: opacity 0.2s;
+}
+
+.photo-crop-btn:active {
+  opacity: 0.7;
+}
+
+/* --- OVERLAY COMPONENTE RITAGLIO FOTO --- */
+#photoCropApp {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100dvh;
+  background-color: white; /* Schermo bianco puro */
+  z-index: 30000; /* Lo z-index più alto, sopra tutto */
+  display: none; /* Inizialmente nascosto */
+  flex-direction: column;
+  overscroll-behavior: none;
+  animation: fadeIn 0.3s ease-out; /* Effetto comparsa morbido */
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Esempio di un header minimale per il componente */
+.crop-app-header {
+  height: 64px;
+  width: 100%;
+  background-color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 0.3px solid rgba(0,0,0,0.08);
+}
+
+.crop-app-title {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: black;
+  margin-right: 28px; /* Bilancia la X a sinistra */
+}
+
+.close-crop-app {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+
+/* Tratto dei cerchi sottile e simbolo rimpicciolito */
+.icon-apps-custom {
+  width: 28px;  /* Aumentato di pochissimo (da 18px a 20px) */
+  height: 28px; /* Aumentato proporzionalmente */
+  margin-left: 0; /* Allineamento gestito dal contenitore */
+}
+
+.icon-apps-custom circle {
+  fill: none;
+  stroke: black;
+  stroke-width: 1.4px; /* Mantenuto lo stesso spessore */
+}
+
+/* Contenitore posizionato in basso a sinistra, allineamento centrato */
+.app-square-container {
+  width: 70px;
+  height: 70px;
+  position: absolute;
+  bottom: -5px;   /* Spostato più in basso di pochissimo (da 10px a 8px) */
+  left: -10px;
+  background-color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Allinea tutto il contenuto al centro */
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+  z-index: 15;
+}
+
+/* Scritta App più grande e allineata al centro */
+.app-label-custom {
+  font-size: 17px; /* Aumentato da 16px a 17px */
+  font-weight: 600;
+  color: black;
+  text-transform: none;
+  letter-spacing: -0.4px;
+  text-align: center; /* Allinea il testo al centro */
+  margin-left: 0; /* Allineamento gestito dal contenitore */
+}
+
+
+
+</style>
+</head>
+<body>
+
+<div id="hiddenCropCode" style="display:none;">
+  <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: white; font-family: -apple-system, sans-serif; }
+        #app { display: flex; height: 100vh; width: 100vw; }
+        
+        /* Sidebar sempre fissa */
+        .sidebar { width: 80px; background: #f2f2f7; border-right: 1px solid #d1d1d6; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .btn-cam { width: 60px; height: 60px; background: white; border-radius: 15px; border: 1px solid #c6c6c8; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+        /* Area Viewport - Inizialmente BIANCA */
+        .viewport { flex: 1; background: white; position: relative; display: flex; align-items: center; justify-content: center; }
+        
+        /* Video nascosto all'inizio */
+        video, canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; display: none; z-index: 10; }
+
+        /* Controlli ✓ e ↺ */
+        .controls { position: absolute; bottom: 40px; display: none; gap: 40px; z-index: 200; }
+        .btn-ui { width: 75px; height: 75px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 35px; color: white; border: none; }
+        .retry { background: #ff3b30; } .ok { background: #34c759; }
+
+        /* Tasto scatto */
+        #shutter { position: absolute; bottom: 30px; width: 75px; height: 75px; border-radius: 50%; border: 5px solid white; display: none; z-index: 150; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="sidebar">
+        <div class="btn-cam" onclick="attivaCam()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+    </div>
+    <div class="viewport" id="stage">
+        <video id="v" playsinline autoplay muted></video>
+        <canvas id="c"></canvas>
+        <div id="shutter" onclick="scatta()"></div>
+        <div class="controls" id="ui">
+            <button class="btn-ui retry" onclick="reset()">↺</button>
+            <button class="btn-ui ok" onclick="alert('Confermato!')">✓</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const v = document.getElementById('v'), c = document.getElementById('c'), ui = document.getElementById('ui'), sh = document.getElementById('shutter'), stage = document.getElementById('stage');
+
+    async function attivaCam() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            v.srcObject = stream;
+            v.style.display = 'block';
+            sh.style.display = 'block';
+            stage.style.background = 'black'; // Diventa nero solo quando la cam è accesa
+        } catch (e) {
+            alert("Errore: Safari blocca la camera su link 'data:'. Usa la funzione 'Salva File' in Comandi Rapidi come spiegato.");
+        }
+    }
+
+    function scatta() {
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        c.getContext('2d').drawImage(v, 0, 0);
+        v.style.display = 'none'; c.style.display = 'block'; sh.style.display = 'none'; ui.style.display = 'flex';
+    }
+
+    function reset() {
+        v.style.display = 'block'; c.style.display = 'none'; sh.style.display = 'block'; ui.style.display = 'none';
+    }
+</script>
+</body>
+</html>
+
+</div>
+
+
+
+<div id="sinnyOverlay">
+  <div class="close-sinny" onclick="closeSinnyScreen()">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </div>
+
+  <div class="dashboard-rect">
+      <div class="photo-crop-btn" onclick="loadPhotoCropApp()">
+          Ritaglio Foto
+      </div>
+  </div>
+
+
+  <div class="scene" id="ballScene">
+    <div class="ball" id="ball3D">
+      <div class="face-container">
+        <div class="mouth-line"></div>
+        <div class="eye" style="left: 5px;"></div>
+        <div class="eye" style="right: 5px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="sidebar-left" id="sidebar" onclick="event.stopPropagation()">
+  <svg class="sidebar-shape" viewBox="0 0 300 800" preserveAspectRatio="none">
+    <path d="M0,14 Q0,0 14,0 H336 Q350,0 350,14 V27 Q350,41 336,41 H314 Q300,41 300,55 V786 Q300,800 286,800 H14 Q0,800 0,786 Z" 
+          fill="white" 
+          stroke="rgba(209, 209, 214, 0.5)" 
+          stroke-width="0.5"/>
+  </svg>
+  <div class="sidebar-top-monolith">
+
+    </div>
+
+
+
+<div style="position: relative; width: calc(100% - 4px); margin-left: 2px; margin-top: -25px;">
+
+<div class="search-container" style="position: absolute; left: 10px; right: 45px; top: -40px; z-index: 5; background: #f2f2f7; border-radius: 10px; height: 34px; display: flex; align-items: center; padding: 0 10px; border: 0.5px solid rgba(0,0,0,0.05);">
+    <span class="search-icon" style="display: flex; align-items: center; margin-right: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2">
+        <circle cx="11" cy="11" r="8"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
+    </span>
+    <input type="text" class="search-input" placeholder="Cerca con Sinny..." style="background: transparent; border: none; outline: none; font-size: 14px; color: black; width: 100%;">
+  </div>
+
+  <div class="new-chat-circle" onclick="resetChatFromSidebar()" 
+       style="position: absolute; right: 1px; top: -40px; z-index: 5;">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+    </svg>
+  </div>
+
+<div class="close-sidebar-btn" onclick="toggleSidebar(event)">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+</div>
+
+  </div>
+<div class="sidebar-rect" onclick="openSinnyScreen()">
+    <svg class="sinny-icon" viewBox="0 0 24 24">
+      <style>
+        .sinny-icon path, .sinny-icon circle { stroke: black; stroke-linecap: round; stroke-linejoin: miter; }
+      </style>
+      <path d="M9 2 L15 2 L12 6.5 Z" stroke-width="0.9" fill="none"/>
+      <path d="M12 2 L12 21.5" stroke-width="0.8"/> 
+      <g stroke-width="0.6" fill="none">
+        <polyline points="12 6.5, 13.5 8.5, 10.5 11, 13.5 13.5, 10.5 16, 13.5 18.5, 12 21.5" />
+        <polyline points="12 6.5, 10.5 8.5, 13.5 11, 10.5 13.5, 13.5 16, 10.5 18.5, 12 21.5" />
+      </g>
+      <circle cx="4.3" cy="9.0" r="2.2" stroke-width="0.9" fill="none"/>
+      <path d="M5.6 11.2 L12 21.5" stroke-width="0.8"/>
+      <g stroke-width="0.8" fill="none">
+        <path d="M6.1 14.0 L7.7 12.6" /> <path d="M7.4 16.1 L9.0 14.7" /> <path d="M8.7 18.2 L10.3 16.8" /> 
+      </g>
+      <circle cx="19.7" cy="9.0" r="2.2" stroke-width="0.9" fill="none"/>
+      <path d="M18.4 11.2 L12 21.5" stroke-width="0.8"/>
+      <g stroke-width="0.8" fill="none">
+        <path d="M17.9 14.0 L16.3 12.6" /> <path d="M16.6 16.1 L15.0 14.7" /> <path d="M15.3 18.2 L13.7 16.8" /> 
+      </g>
+    </svg>
+    <span>Sinny</span>
+  </div>
+
+  <div class="sidebar-section-title" style="margin: -35px 0 15px 10px; position: relative; z-index: 10;">
+    CHAT RECENTI
+  </div>
+
+<div id="recentChatsContainer" style="padding: 0 2px; position: relative; margin-top:  -5px; z-index: 10; display: flex; flex-direction: column; gap: 5px; width: 100%;">
+</div>
+
+<div id="recentChatsContainer" style="...">
+  </div>
+
+<div class="app-square-container" onclick="openAppMenu()">
+  <svg class="icon-apps-custom" viewBox="0 0 24 24">
+    <circle cx="6.5" cy="6.5" r="4.5" />
+    <circle cx="17.5" cy="6.5" r="4.5" />
+    <circle cx="6.5" cy="17.5" r="4.5" />
+    <circle cx="17.5" cy="17.5" r="4.5" />
+  </svg>
+  <span class="app-label-custom">App</span>
+</div>
+
+</div>
+
+
+  <div class="header" id="mainHeader">
+    <div class="header-trigger" id="headerTrigger" onclick="toggleSidebar(event)"><span></span><span></span></div>
+    <h1>Sinny</h1>
+    <div class="menu-dots" onclick="toggleDropdown(event)"><svg viewBox="0 0 24 24"><path d="M12 20c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0-6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm0-6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg></div>
+  </div>
+
+<div class="chat-container" id="chat">
+  </div>
+
+
+<div class="input-container" id="inputContainer">
+  <input type="text" id="userInput" class="main-input" placeholder="Scrivi a Sinny..." 
+         onfocus="setKeyboard(true)" onblur="setKeyboard(false)"
+         onkeydown="if(event.key==='Enter') { sendMessage(); return false; }">
+  
+  <div class="send-btn" onclick="sendMessage()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+    </svg>
+  </div>
+</div>
+
+
+
+
+  <script>
+
+let isFirstLoad = true; // Dichiarazione globale
+
+
+    // --- BLOCCO ZOOM TOTALE (JavaScript Hard-Fix) ---
+    // 1. Blocca pinch-to-zoom (due dita)
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+
+    // 2. Blocca double-tap zoom (doppio tocco veloce)
+    let lastTouch = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouch <= 300) e.preventDefault();
+      lastTouch = now;
+    }, false);
+
+    // 3. Blocca lo zoom della rotellina (per mouse/iPad con trackpad)
+    document.addEventListener('wheel', (e) => {
+      if (e.ctrlKey) e.preventDefault();
+    }, { passive: false });
+
+    const sidebar = document.getElementById('sidebar');
+    const dropdown = document.getElementById('dropdown');
+    const headerTrigger = document.getElementById('headerTrigger');
+    const inputContainer = document.getElementById('inputContainer');
+    let brain = {};
+
+    function toggleSidebar(e) { 
+      e.stopPropagation(); 
+      const isOpen = sidebar.classList.toggle('open'); 
+      document.body.classList.toggle('menu-open'); 
+      headerTrigger.style.visibility = isOpen ? "hidden" : "visible"; 
+    }
+
+// --- FUNZIONI DI GESTIONE SCHERMATA SINNY (OVERLAY) ---
+
+function openSinnyScreen() {
+    const overlay = document.getElementById('sinnyOverlay');
+    const inputCont = document.getElementById('inputContainer');
+    const userInput = document.getElementById('userInput');
+
+    // 1. Chiude la tastiera se è aperta
+    if (userInput) userInput.blur();
+
+    // 2. Mostra l'overlay pulito
+    overlay.style.display = 'block';
+    
+    // 3. NASCONDI COMPLETAMENTE l'input container e l'header
+    if (inputCont) inputCont.style.visibility = 'hidden'; 
+    document.getElementById('mainHeader').style.opacity = '0';
+
+    // 4. Chiude la sidebar se aperta
+    sidebar.classList.remove('open');
+    document.body.classList.remove('menu-open');
+    if (headerTrigger) headerTrigger.style.visibility = "hidden";
+}
+
+function closeSinnyScreen() {
+    const overlay = document.getElementById('sinnyOverlay');
+    const inputCont = document.getElementById('inputContainer');
+
+    // 1. Nasconde l'overlay
+    overlay.style.display = 'none';
+    
+    // 2. RIPRISTINA l'interfaccia standard
+    if (inputCont) inputCont.style.visibility = 'visible';
+    document.getElementById('mainHeader').style.opacity = '1';
+    if (headerTrigger) headerTrigger.style.visibility = "visible";
+}
+
+(function() {
+  const searchContainer = document.getElementById('searchContainer');
+  const inputContainer = document.getElementById('inputContainer');
+  const userInput = document.getElementById('userInput');
+  const searchInput = document.getElementById('searchInput');
+  const sidebar = document.getElementById('sidebar');
+  const header = document.querySelector('header') || document.querySelector('.header') || document.getElementById('header');
+
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = `
+    html, body {
+      position: fixed !important;
+      overflow: hidden !important;
+      overscroll-behavior: none !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      touch-action: none !important;
+      background-color: white !important;
+    }
+
+    header, .header, #header {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      z-index: 9999 !important;
+      background-color: white !important;
+      /* Evita che l'header segua il rimbalzo del viewport */
+      transform: none !important; 
+    }
+
+    /* BLOCCO MIRATO: CHAT RECENTI (Il testo che scappa) */
+    .sidebar-section-title {
+      /* Forza il testo a restare ancorato alla sidebar e non alla pagina */
+      position: relative !important; 
+      display: block !important;
+      /* Questo è il segreto: dice a Safari di non proiettare l'elemento fuori */
+      contain: paint !important; 
+      -webkit-transform: translateZ(0); 
+      font-size: 16px !important; /* Impedisce lo sbalzo hardware */
+      pointer-events: none !important; /* Evita che il tocco accidentale attivi lo scroll */
+    }
+
+ .chat-container {
+      position: fixed !important;
+      top: 60px !important;
+      left: 0 !important;
+      width: 52.9%% !important;
+      height: calc(100% - 60px) !important;
+      /* Se la chat non scorre durante il focus, Safari non alza la pagina */
+      contain: strict !important;
+     scroll-behavior: smooth;
+    overflow-y: scroll !important; /* CAMBIATO: da hidden a scroll */
+      -webkit-overflow-scrolling: touch !important; /* Rende lo scroll fluido su iPhone */
+
+ transition: transform 0.55s cubic-bezier(0.17, 0.89, 0.32, 1.08) !important;
+  will-change: transform;
+
+    }
+
+  #inputContainer, #searchContainer {
+      position: fixed !important;
+      left: 50% !important;
+      width: 52.9% !important;
+      height: 48px !important;
+      z-index: 999999 !important;
+      background-color: #f2f2f7 !important;
+      border: 1.5px solid #e5e5ea !important;
+      border-radius: 24px !important;
+      display: flex !important;
+      align-items: center !important;
+      top: 0 !important;
+      /* LA TRANSIZIONE APPLE: 0.5s con curva a molla */
+ transition: transform 0.55s cubic-bezier(0.17, 0.89, 0.32, 1.08) !important;
+  pointer-events: auto;
+  /* Ottimizzazione hardware */
+  will-change: transform;
+  -webkit-font-smoothing: antialiased;
+      transform: translate3d(-50%, 0, 0);
+    }
+
+    /* Forza il grigio anche se Safari prova a sovrascrivere */
+    #inputContainer:focus-within, #searchContainer:focus-within {
+      background-color: #f2f2f7 !important;
+    }
+
+    #userInput, #searchInput {
+      background: transparent !important;
+      border: none !important;
+      outline: none !important;
+      -webkit-appearance: none !important;
+      font-size: 16px !important;
+      color: black !important;
+      width: 100%;
+      padding: 0 15px;
+      /* Elimina la vibrazione dei suggerimenti */
+      -webkit-transform: translateZ(0);
+    }
+  `;
+  document.head.appendChild(styleSheet);
+
+const lockHeight = () => {
+    const h = window.innerHeight + "px";
+    document.documentElement.style.height = h;
+    document.body.style.height = h;
+  };
+
+const syncAll = () => {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+
+  // 1. DISTRUGGI LO SCROLL DI SAFARI
+  // Se la pagina si muove di un pixel, rovina il calcolo
+  window.scrollTo(0, 0);
+
+  const isSidebarOpen = sidebar && sidebar.classList.contains('open');
+  const xBase = isSidebarOpen ? "calc(-50% + 165px)" : "-50%";
+
+  const inputHeight = 48;
+  
+  // 2. CALCOLO DINAMICO PURO (Tutto basato sul Viewport)
+  // Non usare window.innerHeight, usa vv.offsetTop + vv.height per il fondo reale
+  const fondoReale = vv.offsetTop + vv.height; 
+  
+  // Quota a riposo (quando la tastiera è giù, vv.height è massimo)
+  // Usiamo un valore fisso per la "base" per evitare che balli
+  const baseSchermo = document.documentElement.clientHeight;
+  const yRiposo = baseSchermo - inputHeight - 25;
+
+  // Quota agganciata (sempre a 12px dal bordo della tastiera)
+  const yAggancio = vv.offsetTop + vv.height - inputHeight - 12;
+
+  // 3. IL MOMENTO DELLA VERITÀ
+  // Math.min sceglierà yRiposo finché la tastiera è lontana.
+  // Quando la tastiera sale e yAggancio diventa minore di yRiposo 
+  // (ovvero quando lo spazio scende sotto i 12px), l'input si incolla.
+  const targetY = Math.min(yRiposo, yAggancio);
+
+  // 4. APPLICAZIONE HARDWARE (No CSS, No Delay)
+  if (inputContainer) {
+    // transition: none deve essere forzato, altrimenti il CSS prova a "smoothare" 
+    // e l'input arriva dopo la tastiera.
+    inputContainer.style.setProperty('transition', 'none', 'important');
+    inputContainer.style.setProperty('transform', `translate3d(${xBase}, ${targetY}px, 0)`, 'important');
+  }
+
+  if (searchContainer) {
+    searchContainer.style.setProperty('transition', 'none', 'important');
+    searchContainer.style.setProperty('transform', `translate3d(${xBase}, ${targetY - 55}px, 0)`, 'important');
+  }
+};
+
+// 5. ASCOLTO FRAME-BY-FRAME
+// iOS aggiorna vv.height 60 volte al secondo mentre la tastiera sale
+window.visualViewport.addEventListener('resize', syncAll);
+window.visualViewport.addEventListener('scroll', syncAll);
+
+// Avvio immediato
+syncAll();
+
+  // IL SEGRETO DELLA "SECONDA VOLTA": 
+  // Forziamo un blocco che non lascia spazio a Safari per 1.5 secondi
+  const globalLock = () => {
+    const startTime = performance.now();
+    const reaper = (now) => {
+      window.scrollTo(0, 0);
+      lockHeight();
+      syncAll();
+      
+      const isActive = (document.activeElement === userInput || document.activeElement === searchInput);
+      // Estendiamo il tempo di "Shock" a 1500ms per sicurezza assoluta
+      if (isActive || (now - startTime < 1500)) {
+        requestAnimationFrame(reaper);
+      }
+    };
+    requestAnimationFrame(reaper);
+  };
+
+  const handleInteraction = (e) => {
+    const field = e.currentTarget;
+    if (document.activeElement === field) return;
+
+    e.preventDefault(); 
+    
+    // RESET AGGRESSIVO: Prima di toccare l'input, azzeriamo Safari
+    window.scrollTo(0, 0);
+    lockHeight();
+    
+    // Focus forzato (Fase di Shock)
+    field.focus({ preventScroll: true });
+    
+    // Avviamo la protezione temporizzata
+    globalLock();
+  };
+
+  [userInput, searchInput].forEach(field => {
+    if (field) {
+      field.addEventListener('touchstart', handleInteraction, { passive: false });
+      field.addEventListener('mousedown', handleInteraction);
+      
+      // PULIZIA MEMORIA: Ogni volta che la tastiera scende, resettiamo Safari
+      field.addEventListener('blur', () => {
+        // Piccola pausa per lasciare che la tastiera sparisca, poi azzeriamo tutto
+        setTimeout(() => {
+          window.scrollTo(0, 0);
+          lockHeight();
+          syncAll();
+          // Rimuoviamo il focus per essere pronti alla prossima "Prima Volta"
+          document.activeElement.blur();
+        },10);
+      });
+    }
+  });
+
+  window.visualViewport.addEventListener('resize', syncAll);
+  window.visualViewport.addEventListener('scroll', (e) => {
+    e.preventDefault();
+    window.scrollTo(0, 0);
+  });
+
+  document.addEventListener('touchmove', (e) => {
+    if (window.visualViewport.height < window.innerHeight -4) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  // --- OSSERVATORE SIDEBAR ---
+  // Questo rileva quando la sidebar cambia classe e sposta l'input di conseguenza
+  if (sidebar) {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === "class") {
+          // Attiviamo una transizione fluida per lo spostamento laterale
+          inputContainer.style.setProperty('transition', 'transform 0.55s cubic-bezier(0.17, 0.89, 0.32, 1.08)', 'important');
+          if (searchContainer) searchContainer.style.setProperty('transition', 'transform 0.55s cubic-bezier(0.17, 0.89, 0.32, 1.08)', 'important');
+          
+          syncAll();
+        }
+      });
+    });
+
+    observer.observe(sidebar, { attributes: true });
+  }
+
+
+  // Inizializzazione immediata
+  lockHeight();
+  syncAll();
+
+  // --- FUNZIONE SWIPE DOWN PER CHIUDERE TASTIERA ---
+  let touchStartY = 0;
+  
+  document.addEventListener('touchstart', (e) => {
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    const touchY = e.touches[0].clientY;
+    const isKeyboardOpen = window.visualViewport.height < window.innerHeight - 50;
+    
+    // Se la tastiera è aperta e l'utente scorre verso il basso di almeno 30px
+    if (isKeyboardOpen && touchY > touchStartY + 30) {
+      // Se l'utente non sta scrivendo attivamente (opzionale, rimuovi se vuoi chiusura totale)
+      if (document.activeElement === userInput || document.activeElement === searchInput) {
+        document.activeElement.blur(); // Nasconde la tastiera
+      }
+    }
+  }, { passive: true });
+
+})();
+
+
+// --- LOGICA CHAT: TRASLAZIONE FLUIDA DIETRO HEADER ---
+
+function addMessage(sender, text) {
+    const chat = document.getElementById('chat');
+    if (!chat) return;
+
+    // 1. Setup Layout
+    chat.style.display = "flex";
+    chat.style.flexDirection = "column";
+    chat.style.overflowY = "auto";
+    chat.style.scrollBehavior = "smooth"; // Forza la fluidità a livello di contenitore
+    
+    chat.style.paddingTop = " 30px";   
+    chat.style.paddingBottom = "100dvh"; 
+
+    const wrapper = document.createElement('div');
+    wrapper.className = "message-wrapper";
+    wrapper.style.width = "100%";
+    wrapper.style.marginLeft = "auto";
+    wrapper.style.marginRight = "auto";
+    wrapper.style.marginBottom = "40px"; 
+    wrapper.style.flexShrink = "0";      
+    wrapper.style.display = "flex";
+    wrapper.style.flexDirection = "column";
+    // Transizione per un movimento morbido
+    wrapper.style.transition = "all 0.6s cubic-bezier(0.2, 0.9, 0.4, 1)";
+
+    const msg = document.createElement('div');
+    msg.className = "message " + (sender === "Sinny" ? "sinny" : "user");
+    msg.innerText = text;
+
+    // --- STILE BOLLE ---
+    if (sender === "Sinny") {
+        msg.style.alignSelf = "flex-start";
+        msg.style.backgroundColor = "transparent";
+        msg.style.fontWeight = "500";
+    } else {
+        msg.style.alignSelf = "flex-end";
+        msg.style.backgroundColor = "#f2f2f7"; 
+        msg.style.borderRadius = "18px";
+        msg.style.padding = "10px 16px";
+        msg.style.maxWidth = "fit-content";
+    }
+    
+    wrapper.appendChild(msg);
+    chat.appendChild(wrapper);
+
+// 2. SCORRIMENTO INTELLIGENTE ALLA NUOVA COPPIA
+    setTimeout(() => {
+        const allWrappers = chat.querySelectorAll('.message-wrapper');
+        if (allWrappers.length > 0) {
+            // Se Sinny risponde, puntiamo al messaggio dell'utente (il penultimo) per far salire la coppia
+            const targetIndex = (sender === "Sinny" && allWrappers.length >= 2) 
+                                ? allWrappers.length - 2 
+                                : allWrappers.length - 1;
+            
+            const targetElement = allWrappers[targetIndex];
+            const targetY = targetElement.offsetTop;
+
+            chat.scrollTo({
+                top: targetY - 30, // Spazio extra per non toccare l'header
+                behavior: 'smooth' 
+            });
+        }
+    }, 150); // Timeout leggermente aumentato per stabilità su Safari
+}
+
+// --- VARIABILI DI STATO ---
+let firstPairCreated = false; 
+let currentChatTitle = "";
+
+// --- FUNZIONE DI INVIO MESSAGGI ---
+function sendMessage() {
+    const inputField = document.getElementById('userInput');
+    if (!inputField) return;
+
+    const text = inputField.value.trim(); 
+    if (!text) return;
+
+    // Se è il primo messaggio, lo usiamo come titolo per la sidebar
+    if (!firstPairCreated) {
+        currentChatTitle = text;
+    }
+
+    // Aggiunge messaggio utente
+    addMessage("Utente", text);
+    inputField.value = ""; 
+
+    // Risposta di Sinny dopo 700ms
+    setTimeout(() => {
+        addMessage("Sinny", "Non ho questa informazione.");
+
+        // Crea il rettangolo grigio in Sidebar solo alla PRIMA risposta
+        if (!firstPairCreated) {
+            createRecentChatRect(currentChatTitle);
+            firstPairCreated = true;
+        }
+    }, 700);
+}
+
+function createRecentChatRect(title) {
+    const container = document.getElementById('recentChatsContainer');
+    if (!container) return;
+
+    const rect = document.createElement('div');
+    
+    // 1. Applichiamo la classe sidebar-rect per ereditare TUTTO lo stile (larghezza, altezza, colori)
+    rect.className = "sidebar-rect"; 
+    
+    // 2. Allineamento millimetrico per pareggiare il rettangolo "Sinny"
+    rect.style.width = "calc(100% - 0px)"; 
+    rect.style.marginLeft = "0px"; // Pareggia il margin-left della sidebar-rect
+    rect.style.marginTop = "0px";
+    rect.style.paddingLeft = "14px"; // Stesso padding interno del pulsante Sinny
+    rect.style.flexShrink = "0"; // Impedisce al rettangolo di schiacciarsi
+
+    // 3. Contenuto (solo testo con troncamento se troppo lungo)
+    rect.innerHTML = `
+        <span style="flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:16px;">
+            ${title}
+        </span>
+    `;
+
+    rect.onclick = function() {
+        // Qui puoi aggiungere la logica per riaprire quella specifica chat
+        sidebar.classList.remove('open');
+        document.body.classList.remove('menu-open');
+        const trigger = document.getElementById('headerTrigger');
+        if(trigger) trigger.style.visibility = "visible";
+    };
+
+    // Usiamo appendChild per metterle in ordine di creazione
+    container.appendChild(rect);
+}
+
+function resetChatFromSidebar() {
+    const chatContainer = document.getElementById('chat');
+    const inputField = document.getElementById('userInput');
+
+    // 1. Svuota la chat
+    if (chatContainer) chatContainer.innerHTML = "";
+    
+    // 2. Reset logica messaggi
+    firstPairCreated = false;
+    currentChatTitle = "";
+
+    // --- LOGICA ANTI-SCATTO E POSIZIONAMENTO ---
+
+    // A. Blocchiamo subito la posizione della pagina per evitare che Safari si muova
+    if (typeof window.lockHeight === "function") window.lockHeight();
+    window.scrollTo(0, 0);
+
+    // B. Forza la sidebar a restare aperta visivamente (nel caso ci fossero conflitti)
+    // Non rimuoviamo .open né .menu-open
+
+    // C. Focus con protezione
+    if (inputField) {
+        // Usiamo preventScroll per dire al browser di non saltare all'input
+        inputField.focus({ preventScroll: true });
+
+        // D. Sincronizzazione immediata della posizione
+        // Poiché la sidebar è aperta, syncAll userà: calc(-50% + 165px)
+        if (typeof window.syncAll === "function") {
+            window.syncAll();
+        }
+
+        // E. Avviamo il "Global Lock" (se presente nel tuo codice) 
+        // per stabilizzare la tastiera durante i primi ms di salita
+        if (typeof globalLock === "function") {
+            globalLock();
+        } else {
+            // Alternativa: forziamo un secondo ricalcolo dopo un micro-ritardo
+            setTimeout(() => {
+                window.scrollTo(0, 0);
+                if (typeof window.syncAll === "function") window.syncAll();
+            }, 50);
+        }
+    }
+}
+
+// --- LOGICA SBIADIMENTO DOPPIA DINAMICA (Sincronizzata con Tastiera) ---
+document.addEventListener('DOMContentLoaded', () => {
+    const chatContainer = document.getElementById('chat');
+    if (!chatContainer) return;
+
+   // --- LOGICA SBIADIMENTO DOPPIA CALIBRATA ---
+const updateFade = () => {
+    window.requestAnimationFrame(() => {
+        const vv = window.visualViewport;
+        const allWrappers = chatContainer.querySelectorAll('.message-wrapper');
+        
+        const currentViewHeight = vv ? vv.height : window.innerHeight;
+        const currentOffset = vv ? vv.offsetTop : 0;
+
+        // PARAMETRI ALTO (Header): Nitidezza massima fino all'ultimo
+        const headerLimit = 64; 
+        const topFadeStart = 85;  // Inizia a sbiadire solo a 20px dall'header
+        const topFadeEnd = 64;    // Sparisce al bordo
+
+        // PARAMETRI BASSO (Input): Sbiadimento anticipato
+        // Inizia a sbiadire molto prima (160px dal fondo) per non toccare l'input
+        const bottomFadeStart = currentOffset + currentViewHeight - 160; 
+        const bottomFadeEnd = currentOffset + currentViewHeight - 55;
+
+        allWrappers.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            let opacity = 1;
+            let blur = 0;
+            let translateY = 0;
+
+            // 1. GESTIONE ALTO (Più "duro", resta nitido più a lungo)
+            if (rect.top < topFadeStart) {
+                let distance = rect.top - topFadeEnd;
+                let range = topFadeStart - topFadeEnd;
+                opacity = Math.min(Math.max(distance / range, 0), 1);
+                blur = (1 - opacity) * 4; // Blur ridotto per l'alto
+                translateY = (1 - opacity) * -5;
+            } 
+            
+            // 2. GESTIONE BASSO (Più "morbido", sbiadisce molto prima)
+            else if (rect.bottom > bottomFadeStart) {
+                let distance = bottomFadeEnd - rect.bottom;
+                let range = bottomFadeEnd - bottomFadeStart;
+                let bottomOpacity = Math.min(Math.max(distance / range, 0), 1);
+                
+                opacity = Math.min(opacity, bottomOpacity);
+                blur = (1 - opacity) * 12; // Blur più forte per il basso
+                translateY = (1 - opacity) * 15;
+            }
+
+            // 3. APPLICAZIONE (con correzione Gamma per nitidezza)
+            // Math.pow(opacity, 0.8) rende la transizione più "piena" in alto
+            const smoothOpacity = rect.top < topFadeStart ? Math.pow(opacity, 0.7) : Math.pow(opacity, 1.3);
+            
+            el.style.opacity = smoothOpacity;
+            
+            if (smoothOpacity < 1) {
+                el.style.filter = `blur(${blur}px)`;
+                el.style.transform = `translate3d(0, ${translateY}px, 0)`;
+            } else {
+                el.style.filter = "none";
+                el.style.transform = "none";
+            }
+
+            // Visibilità fisica
+            if (rect.bottom < headerLimit || rect.top > (currentOffset + currentViewHeight)) {
+                el.style.visibility = "hidden";
+            } else {
+                el.style.visibility = "visible";
+            }
+        });
+    });
+};
+
+
+    // Eventi di trigger
+    chatContainer.addEventListener('scroll', updateFade, { passive: true });
+    
+    const chatObserver = new MutationObserver(updateFade);
+    chatObserver.observe(chatContainer, { childList: true, subtree: true });
+    
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', updateFade);
+        window.visualViewport.addEventListener('scroll', updateFade);
+    }
+    
+    // Esecuzione iniziale
+    updateFade();
+});
+
+function loadPhotoCropApp() {
+    const container = document.getElementById('photoCropApp');
+    const hiddenSource = document.getElementById('hiddenCropCode');
+    
+    if (!container || !hiddenSource) return;
+
+    // Preleviamo il testo puro dal nascondiglio
+    const codiceModulo = hiddenSource.innerHTML; 
+
+    // Iniettiamo il codice nel contenitore visibile
+    container.innerHTML = codiceModulo;
+    container.style.display = 'flex';
+
+    // Forza l'attivazione dei tasti e degli script del ritaglio
+    const scripts = container.querySelectorAll("script");
+    scripts.forEach(oldScript => {
+        const newScript = document.createElement("script");
+        newScript.text = oldScript.text;
+        document.head.appendChild(newScript).parentNode.removeChild(newScript);
+    });
+}
+
+
+  </script>
+
+<div id="photoCropApp"></div>
+
+
+</body>
+</html>
