@@ -2,9 +2,9 @@ name: Update Sinny
 on:
   workflow_dispatch:
     inputs:
-      # Ora l'input riceve tutto il dizionario JSON inviato dall'iPad
+      # GitHub riceve tutto il blocco JSON qui
       client_payload:
-        description: 'Dati JSON dai Comandi Rapidi'
+        description: 'Dati dai Comandi Rapidi'
         required: true
 
 jobs:
@@ -15,17 +15,14 @@ jobs:
 
       - name: Create index and index2 files
         run: |
-          # Estraiamo index_content e lo decodifichiamo in index.html
+          # Estraiamo i contenuti usando fromJson
           echo "${{ fromJson(github.event.inputs.client_payload).index_content }}" | base64 --decode > index.html
-          
-          # Estraiamo index2_content e lo decodifichiamo in index2.html
           echo "${{ fromJson(github.event.inputs.client_payload).index2_content }}" | base64 --decode > index2.html
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Aggiungiamo entrambi i file al commit
           git add index.html index2.html
-          git commit -m "Update index.html and index2.html from Shortcut"
+          git commit -m "Update multiple files from Shortcut"
           git push
