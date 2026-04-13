@@ -6,11 +6,11 @@
     <title>Sinny Cam UI</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 000; font-family: -apple-system, sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: white; font-family: -apple-system, sans-serif; }
         
         #app { display: flex; height: 100vh; width: 100vw; }
         
-        /* Sidebar laterale */
+        /* Sidebar laterale - fissa a sinistra */
         .sidebar { 
             width: 80px; 
             background: #f2f2f7; 
@@ -19,7 +19,7 @@
             flex-direction: column;
             align-items: center; 
             justify-content: center; 
-            z-index: 100; 
+            z-index: 50; /* Sotto la fotocamera quando attiva */
         }
 
         .btn-cam { 
@@ -35,7 +35,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* Area Principale */
+        /* Area Principale - Bianca inizialmente */
         .viewport { 
             flex: 1; 
             background: white; 
@@ -44,6 +44,18 @@
             align-items: center; 
             justify-content: center; 
             overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* Classe speciale per il Tutto Schermo */
+        .viewport.full-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000; /* Sopra la sidebar */
+            background: #000;
         }
         
         /* Video e Canvas */
@@ -53,16 +65,15 @@
             object-fit: cover; 
             position: absolute; 
             display: none; 
-            z-index: 10; 
         }
 
-        /* Pulsanti di controllo ✓ e ↺ */
+        /* Controlli UI */
         .controls { 
             position: absolute; 
             bottom: 50px; 
             display: none; 
             gap: 40px; 
-            z-index: 200; 
+            z-index: 1100; 
         }
 
         .btn-ui { 
@@ -81,7 +92,6 @@
         .retry { background: #ff3b30; } 
         .ok { background: #34c759; }
 
-        /* Tasto scatto personalizzato */
         #shutter { 
             position: absolute; 
             bottom: 40px; 
@@ -91,10 +101,23 @@
             border: 6px solid white; 
             background: rgba(255,255,255,0.2);
             display: none; 
-            z-index: 150; 
+            z-index: 1050; 
             cursor: pointer;
         }
-        #shutter:active { transform: scale(0.9); background: white; }
+
+        /* Tasto per uscire dalla modalità cam */
+        #exit-cam {
+            position: absolute;
+            top: 40px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            display: none;
+            z-index: 1100;
+        }
     </style>
 </head>
 <body>
@@ -110,6 +133,7 @@
     </div>
 
     <div class="viewport" id="stage">
+        <button id="exit-cam" onclick="chiudiCam()">Chiudi</button>
         <video id="v" playsinline autoplay muted></video>
         <canvas id="c"></canvas>
         
@@ -128,45 +152,49 @@
     const ui = document.getElementById('ui');
     const sh = document.getElementById('shutter');
     const stage = document.getElementById('stage');
+    const exitBtn = document.getElementById('exit-cam');
 
-    // Funzione per attivare la fotocamera posteriore
     async function attivaCam() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    facingMode: "environment",
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 }
-                } 
+                video: { facingMode: "environment" } 
             });
             v.srcObject = stream;
+            
+            // Attiva modalità TUTTO SCHERMO
+            stage.classList.add('full-screen');
+            
             v.style.display = 'block';
             sh.style.display = 'block';
-            stage.style.background = '#000';
+            exitBtn.style.display = 'block';
             ui.style.display = 'none';
             c.style.display = 'none';
         } catch (e) {
-            alert("Impossibile accedere alla fotocamera. Assicurati di aver dato i permessi a Safari.");
+            alert("Errore fotocamera.");
         }
     }
 
-    // Funzione per scattare la foto
+    function chiudiCam() {
+        const stream = v.srcObject;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+        stage.classList.remove('full-screen');
+        v.style.display = 'none';
+        sh.style.display = 'none';
+        exitBtn.style.display = 'none';
+    }
+
     function scatta() {
-        // Imposta le dimensioni del canvas uguali a quelle del video
         c.width = v.videoWidth; 
         c.height = v.videoHeight;
-        
-        // Disegna il fotogramma corrente sul canvas
         c.getContext('2d').drawImage(v, 0, 0);
-        
-        // Nasconde il video e mostra il fermo immagine con i controlli
         v.style.display = 'none'; 
         c.style.display = 'block'; 
         sh.style.display = 'none'; 
         ui.style.display = 'flex';
     }
 
-    // Funzione per tornare alla fotocamera
     function reset() {
         v.style.display = 'block'; 
         c.style.display = 'none'; 
@@ -174,19 +202,14 @@
         ui.style.display = 'none';
     }
 
-    // Funzione per scaricare la foto scattata
     function salvaFoto() {
         const dataURL = c.toDataURL('image/png');
         const link = document.createElement('a');
-        link.download = 'sinny-capture.png';
+        link.download = 'capture.png';
         link.href = dataURL;
         link.click();
-        
-        // Feedback all'utente e reset
-        setTimeout(() => {
-            alert("Foto salvata nella tua galleria/file!");
-            reset();
-        }, 100);
+        alert("Salvata!");
+        chiudiCam();
     }
 </script>
 
