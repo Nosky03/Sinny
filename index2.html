@@ -154,8 +154,8 @@
         finalImg.classList.remove('ai-active');
     });
 
-       function eseguiRitaglioAutomatico() {
-        // 1. Prepariamo un canvas per gestire la trasparenza (Subject Lift)
+          function eseguiRitaglioAutomatico() {
+        // 1. Prepariamo canvas e coordinate originali
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
         const w = finalImg.naturalWidth;
@@ -164,33 +164,53 @@
         tempCanvas.width = w;
         tempCanvas.height = h;
 
-        // 2. Creiamo una maschera ellittica (simula l'IA che isola il centro)
-        tempCtx.save();
-        tempCtx.beginPath();
-        tempCtx.ellipse(w/2, h/2, w/3, h/2.5, 0, 0, Math.PI * 2);
-        tempCtx.clip(); 
-
-        // 3. Disegniamo l'immagine (solo la parte nell'ellisse verrà mantenuta)
+        // 2. Disegniamo l'immagine originale sul canvas temporaneo per analizzarla
         tempCtx.drawImage(finalImg, 0, 0, w, h);
-        tempCtx.restore();
 
-        // 4. Applichiamo l'immagine con sfondo trasparente (PNG)
+        // 3. --- TRUCCO DI SEGMENTAZIONE AVANZATA (Simulazione IA) ---
+        // Recuperiamo i dati dei pixel (RGBA) di tutta l'immagine
+        const imageData = tempCtx.getImageData(0, 0, w, h);
+        const pixels = imageData.data; // È un array enorme: [r,g,b,a, r,g,b,a, ...]
+
+        // Analizziamo ogni pixel per decidere se è sfondo o chiave
+        for (let i = 0; i < pixels.length; i += 4) {
+            const r = pixels[i];     // Rosso
+            const g = pixels[i + 1]; // Verde
+            const b = pixels[i + 2]; // Blu
+            
+            // Calcoliamo la luminosità media del pixel
+            const brightness = (r + g + b) / 3;
+
+            // --- SOGLIA DI RITAGLIO ---
+            // Se il pixel è molto chiaro (vicino al bianco dello sfondo, > 200),
+            // lo rendiamo trasparente impostando il canale Alpha (a) a zero.
+            // La chiave metallica è più scura, quindi verrà mantenuta.
+            if (brightness > 200) { 
+                pixels[i + 3] = 0; // Alpha = 0 (Trasparente)
+            }
+        }
+
+        // 4. Mettiamo i pixel modificati (con lo sfondo cancellato) sul canvas
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // 5. Applichiamo il risultato finale come PNG trasparente
         finalImg.src = tempCanvas.toDataURL('image/png');
         
-        // 5. Animazione di "distacco" dal fondo
-        finalImg.style.transform = "scale(1.08)";
-        finalImg.style.filter = "drop-shadow(0 20px 40px rgba(0,0,0,0.4))";
+        // 6. Animazione di "distacco" Apple Style (invariata)
+        finalImg.style.transform = "scale(1.1)";
+        finalImg.style.filter = "drop-shadow(0 15px 30px rgba(0,0,0,0.5))";
         
         setTimeout(() => {
             finalImg.style.transform = "scale(1)";
             finalImg.classList.remove('ai-active');
         }, 500);
 
-        // Reset UI
+        // Reset interfaccia
         modeRA = false;
         document.getElementById('btn-ra').style.background = 'white';
         document.getElementById('btn-ra').style.color = '#007AFF';
     }
+
 
 
     // --- FUNZIONI CAM E GALLERIA (Invariate) ---
