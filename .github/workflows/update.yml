@@ -15,19 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       
-      - name: Create index and index2 files
+      - name: Create File
         run: |
-          # Creiamo il primo file
-          printf "%s" "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
-          # Creiamo il secondo file (senza sovrascrivere il primo)
-          printf "%s" "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
+          # Questo comando accetta qualsiasi nome file gli mandi (index o index2)
+          printf "%s" "${{ github.event.inputs.file_content }}" | base64 --decode > ${{ github.event.inputs.filename }}
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # Aggiungiamo TUTTI i file nuovi o modificati
-          git add index.html index2.html
-          git commit -m "Update index and index2 separately" || exit 0
+          git add .
+          git commit -m "Update ${{ github.event.inputs.filename }}" || exit 0
           git push
-
