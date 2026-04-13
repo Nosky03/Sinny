@@ -10,7 +10,7 @@
         
         #app { display: flex; height: 100vh; width: 100vw; }
         
-        /* Sidebar laterale */
+        /* Sidebar laterale - fissa a sinistra */
         .sidebar { 
             width: 80px; 
             background: #f2f2f7; 
@@ -19,11 +19,11 @@
             flex-direction: column;
             align-items: center; 
             justify-content: center; 
-            gap: 20px; /* Spazio tra i quadratini */
-            z-index: 50; 
+            z-index: 50; /* Sotto la fotocamera quando attiva */
+            gap: 20px; /* Spazio tra i pulsanti */
         }
 
-        .btn-side { 
+        .btn-cam { 
             width: 60px; 
             height: 60px; 
             background: white; 
@@ -35,9 +35,8 @@
             cursor: pointer;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .btn-side:active { transform: scale(0.95); background: #f2f2f7; }
 
-        /* Area Principale */
+        /* Area Principale - Bianca inizialmente */
         .viewport { 
             flex: 1; 
             background: white; 
@@ -46,71 +45,122 @@
             align-items: center; 
             justify-content: center; 
             overflow: hidden;
+            transition: all 0.3s ease;
         }
 
+        /* Classe speciale per il Tutto Schermo */
         .viewport.full-screen {
             position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 9999;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000; /* Sopra la sidebar */
             background: #000;
         }
         
-        video, canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; display: none; }
-
-        /* Tasto X Bianca */
-        #exit-cam {
-            position: absolute; top: 45px; right: 25px; width: 40px; height: 40px;
-            display: none; align-items: center; justify-content: center;
-            background: none; border: none; cursor: pointer; z-index: 10001;
+        /* Video e Canvas */
+        video, canvas { 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            position: absolute; 
+            display: none; 
         }
-        #exit-cam span { position: absolute; width: 30px; height: 3px; background-color: white; border-radius: 2px; }
-        #exit-cam span:nth-child(1) { transform: rotate(45deg); }
-        #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
 
-        .controls { position: absolute; bottom: 50px; display: none; gap: 40px; z-index: 10000; }
+        /* Controlli UI */
+        .controls { 
+            position: absolute; 
+            bottom: 50px; 
+            display: none; 
+            gap: 40px; 
+            z-index: 1100; 
+        }
 
         .btn-ui { 
-            width: 80px; height: 80px; border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center; 
-            font-size: 35px; color: white; border: none; cursor: pointer;
+            width: 80px; 
+            height: 80px; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-size: 35px; 
+            color: white; 
+            border: none; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
         }
         .retry { background: #ff3b30; } 
         .ok { background: #34c759; }
 
+        /* Pulsante di scatto posizionato sul bordo destro e centrato verticalmente */
         #shutter { 
-            position: absolute; bottom: 40px; width: 85px; height: 85px; 
-            border-radius: 50%; border: 6px solid white; background: rgba(255,255,255,0.2);
-            display: none; z-index: 10000; cursor: pointer;
+            position: absolute; 
+            right: 20px; /* Vicino al bordo destro */
+            top: 50%; /* Centro dell'asse Y */
+            transform: translateY(-50%); /* Centratura precisa */
+            width: 85px; 
+            height: 85px; 
+            border-radius: 50%; 
+            border: 6px solid white; 
+            background: rgba(255,255,255,0.2);
+            display: none; 
+            z-index: 1050; 
+            cursor: pointer;
+        }
+        #shutter:active { transform: translateY(-50%) scale(0.9); background: white; }
+
+        /* Tasto X Bianca per chiudere */
+        #exit-cam {
+            position: absolute;
+            top: 40px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 1100;
         }
 
-        /* Input nascosto per galleria */
-        #gallery-input { display: none; }
+        /* Linee della X */
+        #exit-cam span {
+            position: absolute;
+            width: 30px;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+        }
+        #exit-cam span:nth-child(1) { transform: rotate(45deg); }
+        #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
+
     </style>
 </head>
 <body>
 
 <div id="app">
     <div class="sidebar">
-        <div class="btn-side" onclick="attivaCam()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="btn-cam" onclick="attivaCam()">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                 <circle cx="12" cy="13" r="4"></circle>
             </svg>
         </div>
-
-        <div class="btn-side" onclick="document.getElementById('gallery-input').click()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        
+        <div class="btn-cam" onclick="alert('Funzione immagine da implementare')">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 <circle cx="8.5" cy="8.5" r="1.5"></circle>
                 <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
         </div>
-        <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
     <div class="viewport" id="stage">
         <button id="exit-cam" onclick="chiudiCam()">
-            <span></span><span></span>
+            <span></span>
+            <span></span>
         </button>
 
         <video id="v" playsinline autoplay muted></video>
@@ -135,51 +185,31 @@
 
     async function attivaCam() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment" } 
+            });
             v.srcObject = stream;
+            
             stage.classList.add('full-screen');
             v.style.display = 'block';
             sh.style.display = 'block';
-            exitBtn.style.display = 'flex';
+            exitBtn.style.display = 'block'; // Mostra la X
             ui.style.display = 'none';
             c.style.display = 'none';
-        } catch (e) { alert("Errore fotocamera."); }
-    }
-
-    function caricaImmagine(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const img = new Image();
-            img.onload = function() {
-                stage.classList.add('full-screen');
-                c.width = img.width;
-                c.height = img.height;
-                c.getContext('2d').drawImage(img, 0, 0);
-                c.style.display = 'block';
-                ui.style.display = 'flex';
-                exitBtn.style.display = 'flex';
-                v.style.display = 'none';
-                sh.style.display = 'none';
-            }
-            img.src = e.target.result;
+        } catch (e) {
+            alert("Errore accesso fotocamera.");
         }
-        reader.readAsDataURL(file);
     }
 
     function chiudiCam() {
         const stream = v.srcObject;
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        v.srcObject = null;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
         stage.classList.remove('full-screen');
         v.style.display = 'none';
         sh.style.display = 'none';
         exitBtn.style.display = 'none';
-        c.style.display = 'none';
-        ui.style.display = 'none';
-        document.getElementById('gallery-input').value = "";
     }
 
     function scatta() {
@@ -190,28 +220,28 @@
         c.style.display = 'block'; 
         sh.style.display = 'none'; 
         ui.style.display = 'flex';
-        exitBtn.style.display = 'none';
+        exitBtn.style.display = 'none'; 
     }
 
     function reset() {
-        if (v.srcObject) {
-            v.style.display = 'block'; 
-            sh.style.display = 'block';
-            c.style.display = 'none'; 
-            ui.style.display = 'none';
-            exitBtn.style.display = 'flex';
-        } else {
-            chiudiCam();
-        }
+        v.style.display = 'block'; 
+        c.style.display = 'none'; 
+        sh.style.display = 'block'; 
+        ui.style.display = 'none';
+        exitBtn.style.display = 'block';
     }
 
     function salvaFoto() {
         const dataURL = c.toDataURL('image/png');
         const link = document.createElement('a');
-        link.download = 'sinny-export.png';
+        link.download = 'capture.png';
         link.href = dataURL;
         link.click();
-        setTimeout(() => { alert("Immagine salvata!"); chiudiCam(); }, 100);
+        
+        setTimeout(() => {
+            alert("Salvata!");
+            chiudiCam();
+        }, 100);
     }
 </script>
 
