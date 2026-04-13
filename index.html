@@ -1217,8 +1217,25 @@ const updateFade = () => {
 });
 
 function loadPhotoCropApp() {
-    // Questo comando dice al browser di cambiare pagina
-    window.location.href = "index2.html";
+    const container = document.getElementById('photoCropApp');
+    const hiddenSource = document.getElementById('hiddenCropCode');
+    
+    if (!container || !hiddenSource) return;
+
+    // Preleviamo il testo puro dal nascondiglio
+    const codiceModulo = hiddenSource.innerHTML; 
+
+    // Iniettiamo il codice nel contenitore visibile
+    container.innerHTML = codiceModulo;
+    container.style.display = 'flex';
+
+    // Forza l'attivazione dei tasti e degli script del ritaglio
+    const scripts = container.querySelectorAll("script");
+    scripts.forEach(oldScript => {
+        const newScript = document.createElement("script");
+        newScript.text = oldScript.text;
+        document.head.appendChild(newScript).parentNode.removeChild(newScript);
+    });
 }
 
 
