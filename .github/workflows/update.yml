@@ -3,10 +3,10 @@ on:
   workflow_dispatch:
     inputs:
       filename:
-        description: 'Nome del file (es. index.html)'
+        description: 'Nome del file'
         required: true
       file_content:
-        description: 'Contenuto Base64'
+        description: 'Base64'
         required: true
 
 jobs:
@@ -17,13 +17,14 @@ jobs:
       
       - name: Create File
         run: |
-          # Questo comando accetta qualsiasi nome file gli mandi (index o index2)
-          printf "%s" "${{ github.event.inputs.file_content }}" | base64 --decode > ${{ github.event.inputs.filename }}
+          # Usiamo le virgolette per sicurezza
+          echo "${{ github.event.inputs.file_content }}" | base64 --decode > "${{ github.event.inputs.filename }}"
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add .
+          # Aggiungiamo solo il file specifico che stiamo caricando
+          git add "${{ github.event.inputs.filename }}"
           git commit -m "Update ${{ github.event.inputs.filename }}" || exit 0
           git push
