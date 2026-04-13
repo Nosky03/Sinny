@@ -10,7 +10,7 @@
         
         #app { display: flex; height: 100vh; width: 100vw; }
         
-        /* Sidebar laterale - fissa a sinistra */
+        /* Sidebar laterale */
         .sidebar { 
             width: 80px; 
             background: #f2f2f7; 
@@ -19,7 +19,7 @@
             flex-direction: column;
             align-items: center; 
             justify-content: center; 
-            z-index: 50; /* Sotto la fotocamera quando attiva */
+            z-index: 50; 
         }
 
         .btn-cam { 
@@ -35,7 +35,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* Area Principale - Bianca inizialmente */
+        /* Area Principale */
         .viewport { 
             flex: 1; 
             background: white; 
@@ -44,21 +44,19 @@
             align-items: center; 
             justify-content: center; 
             overflow: hidden;
-            transition: all 0.3s ease;
         }
 
-        /* Classe speciale per il Tutto Schermo */
+        /* Fotocamera a tutto schermo (copre sidebar) */
         .viewport.full-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
             height: 100vh;
-            z-index: 1000; /* Sopra la sidebar */
+            z-index: 9999; /* Valore altissimo per coprire tutto */
             background: #000;
         }
         
-        /* Video e Canvas */
         video, canvas { 
             width: 100%; 
             height: 100%; 
@@ -67,13 +65,41 @@
             display: none; 
         }
 
-        /* Controlli UI */
+        /* Tasto X Bianca per chiudere */
+        #exit-cam {
+            position: absolute;
+            top: 45px;
+            right: 25px;
+            width: 40px;
+            height: 40px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            cursor: pointer;
+            z-index: 10001;
+        }
+
+        /* Linee della X */
+        #exit-cam span {
+            position: absolute;
+            width: 30px;
+            height: 3px;
+            background-color: white;
+            border-radius: 2px;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        #exit-cam span:nth-child(1) { transform: rotate(45deg); }
+        #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
+
+        /* Controlli UI dopo lo scatto */
         .controls { 
             position: absolute; 
             bottom: 50px; 
             display: none; 
             gap: 40px; 
-            z-index: 1100; 
+            z-index: 10000; 
         }
 
         .btn-ui { 
@@ -101,22 +127,8 @@
             border: 6px solid white; 
             background: rgba(255,255,255,0.2);
             display: none; 
-            z-index: 1050; 
+            z-index: 10000; 
             cursor: pointer;
-        }
-
-        /* Tasto per uscire dalla modalità cam */
-        #exit-cam {
-            position: absolute;
-            top: 40px;
-            right: 20px;
-            background: rgba(0,0,0,0.5);
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 20px;
-            display: none;
-            z-index: 1100;
         }
     </style>
 </head>
@@ -133,7 +145,11 @@
     </div>
 
     <div class="viewport" id="stage">
-        <button id="exit-cam" onclick="chiudiCam()">Chiudi</button>
+        <button id="exit-cam" onclick="chiudiCam()">
+            <span></span>
+            <span></span>
+        </button>
+
         <video id="v" playsinline autoplay muted></video>
         <canvas id="c"></canvas>
         
@@ -161,16 +177,14 @@
             });
             v.srcObject = stream;
             
-            // Attiva modalità TUTTO SCHERMO
             stage.classList.add('full-screen');
-            
             v.style.display = 'block';
             sh.style.display = 'block';
-            exitBtn.style.display = 'block';
+            exitBtn.style.display = 'flex'; // Mostra la X
             ui.style.display = 'none';
             c.style.display = 'none';
         } catch (e) {
-            alert("Errore fotocamera.");
+            alert("Errore accesso fotocamera.");
         }
     }
 
@@ -183,6 +197,8 @@
         v.style.display = 'none';
         sh.style.display = 'none';
         exitBtn.style.display = 'none';
+        c.style.display = 'none';
+        ui.style.display = 'none';
     }
 
     function scatta() {
@@ -193,6 +209,8 @@
         c.style.display = 'block'; 
         sh.style.display = 'none'; 
         ui.style.display = 'flex';
+        // Nascondiamo la X durante la revisione della foto per pulizia UI
+        exitBtn.style.display = 'none'; 
     }
 
     function reset() {
@@ -200,6 +218,7 @@
         c.style.display = 'none'; 
         sh.style.display = 'block'; 
         ui.style.display = 'none';
+        exitBtn.style.display = 'flex';
     }
 
     function salvaFoto() {
@@ -208,8 +227,11 @@
         link.download = 'capture.png';
         link.href = dataURL;
         link.click();
-        alert("Salvata!");
-        chiudiCam();
+        
+        setTimeout(() => {
+            alert("Salvata!");
+            chiudiCam();
+        }, 100);
     }
 </script>
 
