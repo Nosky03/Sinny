@@ -14,7 +14,7 @@ jobs:
 
       - name: Create index and index2 files
         run: |
-          # Utilizziamo printf %s per iniettare il testo puro senza interpretare caratteri speciali
+          # Leggiamo direttamente dall'input semplificato
           printf "%s" "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
           printf "%s" "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
 
