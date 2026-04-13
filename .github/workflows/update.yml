@@ -23,10 +23,11 @@ jobs:
         run: |
           printf "%s" "${{ github.event.inputs.index2_content }}" | base64 --decode > index2.html
 
-      - name: Commit and Push
+      - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add index.html index2.html
-          git commit -m "Update index and index2 from Shortcut"
+          git add .
+          # Il trucco è qui: "|| echo" evita che il processo fallisca se non c'è nulla da cambiare
+          git commit -m "Update from Shortcut" || exit 0
           git push
