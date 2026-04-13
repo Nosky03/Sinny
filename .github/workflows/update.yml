@@ -1,0 +1,22 @@
+name: Update Sinny
+on:
+  workflow_dispatch:
+    inputs:
+      file_content:
+        description: 'Codice HTML'
+        required: true
+jobs:
+  update-file:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Create index.html
+        run: |
+          echo "${{ github.event.inputs.file_content }}" > index.html
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add index.html
+          git commit -m "Update index.html from Shortcut"
+          git push
