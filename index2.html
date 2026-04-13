@@ -74,6 +74,27 @@
         #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
 
         #gallery-input { display: none; }
+      
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 2500;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #d1d1d6;
+            text-decoration: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+
     </style>
 </head>
 <body>
@@ -95,10 +116,16 @@
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
-    <div class="viewport" id="viewport">
+     <div class="viewport" id="viewport">
+        <a href="index.html" class="back-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </a>
+        
         <img id="final-photo">
         <canvas id="crop-canvas"></canvas>
     </div>
+
+
 
     <div id="cam-overlay" class="full-screen-cam">
         <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
