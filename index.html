@@ -469,32 +469,44 @@ body.menu-open .input-container {
     z-index: 25001;
   }
 
- /* Schermata bianca Menu App */
-#appMenuOverlay {
-    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: white; z-index: 5000; display: none; padding: 20px;
-}
+  /* Contenitore generale per i pulsanti all'interno del menu App */
+  #appMenuOverlay .apps-grid {
+    padding-top: 80px; /* Spazio per la X in alto */
+    padding-left: 20px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
 
-.apps-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 60px; }
-
-.vinted-app-container {
-    display: flex; flex-direction: column; align-items: center; width: 80px;
+  /* Stile per il singolo pulsante App (Vinted) */
+  .vinted-app-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 60px; /* Larghezza del quadratino */
     cursor: pointer;
-    /* Impedisce l'anteprima e il menu contestuale di Safari */
-    -webkit-touch-callout: none; 
-    -webkit-user-select: none;
-    user-select: none;
-}
+  }
 
-.vinted-icon {
-    width: 65px; height: 65px; background-color: #007782;
-    border-radius: 15px; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
+  /* Il quadratino Vinted con il colore del brand */
+  .vinted-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #007782; /* Colore ufficiale Vinted */
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
 
-.vinted-label { margin-top: 8px; font-size: 14px; color: black; font-weight: 500; }
-
-.close-menu { position: absolute; top: 20px; right: 20px; font-size: 30px; cursor: pointer; color: black; }
+  /* Testo Vinted sotto il quadratino */
+  .vinted-label {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: black;
+    text-align: center;
+  }
 
 
 
@@ -503,21 +515,28 @@ body.menu-open .input-container {
 <body>
 
 <div id="appMenuOverlay">
-    <div class="close-menu" onclick="document.getElementById('appMenuOverlay').style.display='none'">✕</div>
-    
-    <div class="apps-grid">
-        <div class="vinted-app-container" 
-             ontouchstart="window.open('https://www.vinted.it', '_blank')"
-             onclick="window.open('https://www.vinted.it', '_blank')">
-            <div class="vinted-icon">
-                <svg width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M7 7l5 10 5-10" />
-                </svg>
-            </div>
-            <span class="vinted-label">Vinted</span>
-        </div>
+  <div class="close-app-menu" onclick="closeAppMenu()">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </div>
+  
+
+<div class="apps-grid">
+  <div class="vinted-app-container" 
+       onclick="window.open('https://www.vinted.it', '_blank')" 
+       ontouchstart="window.open('https://www.vinted.it', '_blank')">
+    <div class="vinted-icon">
+      <svg width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 7l5 10 5-10" />
+      </svg>
     </div>
+    <span class="vinted-label">Vinted</span>
+  </div>
 </div>
+
+
 
 
 
