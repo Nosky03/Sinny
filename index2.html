@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Sinny Cam UI - Crop Edition</title>
+    <title>Sinny Cam UI - R.A. Edition</title>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: white; font-family: -apple-system, sans-serif; }
@@ -13,20 +13,30 @@
         .sidebar { 
             width: 80px; background: #f2f2f7; border-right: 1px solid #d1d1d6; 
             display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; z-index: 2000; gap: 20px;
+            justify-content: center; z-index: 2000; gap: 15px;
         }
 
         .btn-side { 
             width: 60px; height: 60px; background: white; border-radius: 15px; 
             border: 1px solid #c6c6c8; display: flex; align-items: center; 
             justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-weight: bold; font-size: 14px; color: #007AFF;
         }
 
         .viewport { flex: 1; background: white; position: relative; overflow: hidden; }
 
-        /* La foto finale e il canvas per ritagliare */
-        #final-photo { width: 100%; height: 100%; object-fit: cover; display: none; }
-        #crop-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: none; cursor: crosshair; }
+        #final-photo { 
+            width: 100%; height: 100%; object-fit: cover; display: none; 
+            transition: filter 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Effetto Apple Intelligence (Contorno luminoso) */
+        .ai-active {
+            filter: drop-shadow(0 0 15px #fff) drop-shadow(0 0 30px #007AFF);
+            transform: scale(0.98);
+        }
+
+        #crop-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; display: none; }
 
         /* Overlay Fotocamera */
         .full-screen-cam {
@@ -44,7 +54,7 @@
         .btn-ui { 
             width: 65px; height: 65px; border-radius: 50%; display: flex; 
             align-items: center; justify-content: center; font-size: 28px; 
-            color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+            color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .ok { background: #34c759; order: 1; }
         .retry { background: #ff3b30; order: 2; }
@@ -71,17 +81,16 @@
 <div id="app">
     <div class="sidebar">
         <div class="btn-side" onclick="attivaCam()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
         </div>
         <div class="btn-side" onclick="document.getElementById('gallery-input').click()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
         </div>
-        <div class="btn-side" onclick="attivaRitaglio()">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M6 2L3 5l12 12h3l3-3V11L6 2z"></path>
-                <line x1="14.5" y1="6.5" x2="17.5" y2="9.5"></line>
-                <line x1="3" y1="21" x2="15" y2="9"></line>
-            </svg>
+        <div class="btn-side" onclick="attivaRitaglio()" title="Ritaglio Manuale">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2"><path d="M6 2L3 5l12 12h3l3-3V11L6 2z"></path><line x1="3" y1="21" x2="15" y2="9"></line></svg>
+        </div>
+        <div class="btn-side" onclick="modalitaRA()" id="btn-ra">
+            R.A.
         </div>
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
@@ -114,40 +123,79 @@
     const cropCanvas = document.getElementById('crop-canvas');
     const ctxCrop = cropCanvas.getContext('2d');
 
-    let drawing = false;
-    let points = [];
+    let modeRA = false;
+    let longPressTimer;
 
-    // --- FUNZIONI CAM ---
+    // --- LOGICA R.A. (Simulazione Apple Intelligence) ---
+    function modalitaRA() {
+        if (finalImg.style.display === 'none') {
+            alert("Scatta o carica una foto prima!");
+            return;
+        }
+        modeRA = !modeRA;
+        document.getElementById('btn-ra').style.background = modeRA ? '#007AFF' : 'white';
+        document.getElementById('btn-ra').style.color = modeRA ? 'white' : '#007AFF';
+        alert(modeRA ? "Modalità R.A. Attiva: Tieni premuto sul soggetto per ritagliarlo!" : "Modalità R.A. Disattivata");
+    }
+
+    // Gestione pressione prolungata (Long Press)
+    finalImg.addEventListener('touchstart', (e) => {
+        if (!modeRA) return;
+        longPressTimer = setTimeout(() => {
+            finalImg.classList.add('ai-active');
+            // Qui in un'app vera chiameresti l'IA per segmentare l'immagine
+            // Per ora simuliamo il ritaglio automatico dopo 1 secondo
+            setTimeout(eseguiRitaglioAutomatico, 800);
+        }, 600);
+    });
+
+    finalImg.addEventListener('touchend', () => {
+        clearTimeout(longPressTimer);
+        finalImg.classList.remove('ai-active');
+    });
+
+    function eseguiRitaglioAutomatico() {
+        // Simulazione: Ritagliamo un rettangolo centrale (dove di solito sta il soggetto)
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Calcoliamo un'area centrale simulata
+        const w = finalImg.naturalWidth;
+        const h = finalImg.naturalHeight;
+        
+        tempCanvas.width = w * 0.6;
+        tempCanvas.height = h * 0.6;
+        
+        tempCtx.drawImage(finalImg, w*0.2, h*0.2, w*0.6, h*0.6, 0, 0, tempCanvas.width, tempCanvas.height);
+        
+        finalImg.src = tempCanvas.toDataURL();
+        finalImg.classList.remove('ai-active');
+        modeRA = false;
+        document.getElementById('btn-ra').style.background = 'white';
+        document.getElementById('btn-ra').style.color = '#007AFF';
+    }
+
+    // --- FUNZIONI CAM E GALLERIA (Invariate) ---
     async function attivaCam() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             v.srcObject = stream;
             overlay.style.display = 'block';
-            v.style.display = 'block';
-            sh.style.display = 'block';
-            exitBtn.style.display = 'block';
-            ui.style.display = 'none';
-            canvas.style.display = 'none';
+            v.style.display = 'block'; sh.style.display = 'block'; exitBtn.style.display = 'block';
+            ui.style.display = 'none'; canvas.style.display = 'none';
         } catch (e) { alert("Accesso negato."); }
     }
 
     function scatta() {
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
+        canvas.width = v.videoWidth; canvas.height = v.videoHeight;
         canvas.getContext('2d').drawImage(v, 0, 0);
-        v.style.display = 'none';
-        canvas.style.display = 'block';
-        sh.style.display = 'none';
-        exitBtn.style.display = 'none';
-        ui.style.display = 'flex';
+        v.style.display = 'none'; canvas.style.display = 'block';
+        sh.style.display = 'none'; exitBtn.style.display = 'none'; ui.style.display = 'flex';
     }
 
     function reset() {
-        v.style.display = 'block';
-        canvas.style.display = 'none';
-        sh.style.display = 'block';
-        ui.style.display = 'none';
-        exitBtn.style.display = 'block';
+        v.style.display = 'block'; canvas.style.display = 'none';
+        sh.style.display = 'block'; ui.style.display = 'none'; exitBtn.style.display = 'block';
     }
 
     function accettaFoto() {
@@ -165,86 +213,15 @@
         const file = event.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (e) => {
-            finalImg.src = e.target.result;
-            finalImg.style.display = 'block';
-        };
+        reader.onload = (e) => { finalImg.src = e.target.result; finalImg.style.display = 'block'; };
         reader.readAsDataURL(file);
     }
 
-    // --- FUNZIONI RITAGLIO (CROP) ---
     function attivaRitaglio() {
-        if (finalImg.style.display === 'none') {
-            alert("Scatta o carica prima una foto!");
-            return;
-        }
+        if (finalImg.style.display === 'none') return;
         cropCanvas.width = finalImg.clientWidth;
         cropCanvas.height = finalImg.clientHeight;
         cropCanvas.style.display = 'block';
-        alert("Disegna sulla foto il pezzo da tenere!");
-    }
-
-    cropCanvas.addEventListener('touchstart', (e) => {
-        drawing = true;
-        points = [];
-        const rect = cropCanvas.getBoundingClientRect();
-        const x = e.touches[0].clientX - rect.left;
-        const y = e.touches[0].clientY - rect.top;
-        points.push({x, y});
-    });
-
-    cropCanvas.addEventListener('touchmove', (e) => {
-        if (!drawing) return;
-        const rect = cropCanvas.getBoundingClientRect();
-        const x = e.touches[0].clientX - rect.left;
-        const y = e.touches[0].clientY - rect.top;
-        points.push({x, y});
-
-        // Disegna linea tratteggiata mentre muovi il dito
-        ctxCrop.clearRect(0,0, cropCanvas.width, cropCanvas.height);
-        ctxCrop.beginPath();
-        ctxCrop.setLineDash([5, 5]);
-        ctxCrop.strokeStyle = "red";
-        ctxCrop.lineWidth = 3;
-        ctxCrop.moveTo(points[0].x, points[0].y);
-        for(let p of points) ctxCrop.lineTo(p.x, p.y);
-        ctxCrop.stroke();
-    });
-
-    cropCanvas.addEventListener('touchend', () => {
-        drawing = false;
-        eseguiRitaglio();
-    });
-
-    function eseguiRitaglio() {
-        if (points.length < 3) return;
-
-        // Creiamo un canvas temporaneo per calcolare il ritaglio
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = finalImg.naturalWidth;
-        tempCanvas.height = finalImg.naturalHeight;
-
-        // Calcoliamo la scala tra quello che vediamo a schermo e l'immagine reale
-        const scaleX = finalImg.naturalWidth / cropCanvas.width;
-        const scaleY = finalImg.naturalHeight / cropCanvas.height;
-
-        // Disegniamo la maschera basata sul tuo dito
-        tempCtx.beginPath();
-        tempCtx.moveTo(points[0].x * scaleX, points[0].y * scaleY);
-        for(let p of points) tempCtx.lineTo(p.x * scaleX, p.y * scaleY);
-        tempCtx.closePath();
-        tempCtx.clip(); // Tutto quello fuori dal disegno viene rimosso
-
-        // Disegniamo l'immagine originale dentro la maschera
-        const img = new Image();
-        img.src = finalImg.src;
-        img.onload = () => {
-            tempCtx.drawImage(img, 0, 0);
-            finalImg.src = tempCanvas.toDataURL();
-            cropCanvas.style.display = 'none';
-            ctxCrop.clearRect(0,0, cropCanvas.width, cropCanvas.height);
-        };
     }
 </script>
 
