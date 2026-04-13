@@ -1341,14 +1341,18 @@ function closeAppMenu() {
 }
 
 function openVinted() {
-    // Definiamo l'URL
     const url = "https://www.vinted.it";
+
+    // Aggiungendo width e height, forziamo Safari a creare una finestra 
+    // separata invece di una semplice tab. Su iPad questo attiva spesso 
+    // lo Stage Manager o apre il sito pronto per essere affiancato.
+    window.open(
+        url, 
+        '_blank', 
+        'width=1000,height=800,noopener,noreferrer'
+    );
     
-    // window.open con parametri minimi aiuta il sistema a capire 
-    // che vuoi una nuova finestra/tab pulita senza menu contestuali.
-    window.open(url, '_blank', 'noopener,noreferrer');
-    
-    // Opzionale: chiudi il menu delle app dopo il tocco per pulizia
+    // Chiude il menu delle app nella tua Sinny UI così resta pulita
     closeAppMenu();
 }
 
