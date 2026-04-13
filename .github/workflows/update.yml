@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Create index.html
         run: |
-          echo "${{ github.event.inputs.file_content }}" > index.html
+          echo "${{ github.event.inputs.file_content }}" | base64 --decode > index.html
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
