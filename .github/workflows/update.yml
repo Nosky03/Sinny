@@ -2,26 +2,31 @@ name: Update Sinny
 on:
   workflow_dispatch:
     inputs:
-      file_content:
-        description: 'Dati JSON'
+      index_content:
+        description: 'Base64 di index.html'
+        required: true
+      index2_content:
+        description: 'Base64 di index2.html'
         required: true
 
 jobs:
-  update-file:
+  update-website:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
-      - name: Create index and index2 files
+      - name: Create index.html
         run: |
-          # Leggiamo direttamente dall'input semplificato
-          printf "%s" "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
-          printf "%s" "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
+          printf "%s" "${{ github.event.inputs.index_content }}" | base64 --decode > index.html
 
-      - name: Commit changes
+      - name: Create index2.html
+        run: |
+          printf "%s" "${{ github.event.inputs.index2_content }}" | base64 --decode > index2.html
+
+      - name: Commit and Push
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add index.html index2.html
-          git commit -m "Update from Shortcut (using printf)"
+          git commit -m "Update index and index2 from Shortcut"
           git push
