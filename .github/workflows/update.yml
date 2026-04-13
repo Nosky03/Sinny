@@ -12,16 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: Create index files
+      - name: Create index and index2 files
         run: |
-          # Leggiamo index_content e index2_content dal JSON inviato
-          echo "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
-          echo "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
+          # Utilizziamo printf %s per iniettare il testo puro senza interpretare caratteri speciali
+          printf "%s" "${{ fromJson(github.event.inputs.file_content).index_content }}" | base64 --decode > index.html
+          printf "%s" "${{ fromJson(github.event.inputs.file_content).index2_content }}" | base64 --decode > index2.html
 
       - name: Commit changes
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add index.html index2.html
-          git commit -m "Update from Shortcut"
+          git commit -m "Update from Shortcut (using printf)"
           git push
