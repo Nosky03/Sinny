@@ -446,11 +446,45 @@ body.menu-open .input-container {
   margin-left: 0; /* Allineamento gestito dal contenitore */
 }
 
+  /* Overlay Schermata App (Bianca con X) */
+  #appMenuOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: white;
+    z-index: 25000; /* Sopra tutto */
+    display: none;  /* Nascosto all'inizio */
+    flex-direction: column;
+  }
+
+  /* La X per chiudere la schermata App */
+  .close-app-menu {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    cursor: pointer;
+    padding: 10px;
+    z-index: 25001;
+  }
 
 
 </style>
 </head>
 <body>
+
+<div id="appMenuOverlay">
+  <div class="close-app-menu" onclick="closeAppMenu()">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  </div>
+  </div>
+
+
+
 
 <div id="hiddenCropCode" style="display:none;">
   
@@ -1220,6 +1254,41 @@ function loadPhotoCropApp() {
     // Questo comando dice al browser di cambiare pagina
     window.location.href = "index2.html";
 }
+
+function openAppMenu() {
+    const appOverlay = document.getElementById('appMenuOverlay');
+    const inputCont = document.getElementById('inputContainer');
+    const userInput = document.getElementById('userInput');
+
+    // 1. Chiude la tastiera
+    if (userInput) userInput.blur();
+
+    // 2. Mostra la schermata bianca
+    appOverlay.style.display = 'block';
+    
+    // 3. Nasconde header e input (come richiesto)
+    if (inputCont) inputCont.style.visibility = 'hidden'; 
+    document.getElementById('mainHeader').style.opacity = '0';
+
+    // 4. Chiude la sidebar
+    sidebar.classList.remove('open');
+    document.body.classList.remove('menu-open');
+    if (headerTrigger) headerTrigger.style.visibility = "hidden";
+}
+
+function closeAppMenu() {
+    const appOverlay = document.getElementById('appMenuOverlay');
+    const inputCont = document.getElementById('inputContainer');
+
+    // 1. Nasconde la schermata bianca
+    appOverlay.style.display = 'none';
+    
+    // 2. Ripristina l'interfaccia standard
+    if (inputCont) inputCont.style.visibility = 'visible';
+    document.getElementById('mainHeader').style.opacity = '1';
+    if (headerTrigger) headerTrigger.style.visibility = "visible";
+}
+
 
   </script>
 
