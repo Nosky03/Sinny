@@ -23,36 +23,32 @@
             gap: 20px;
         }
 
-        .btn-cam { 
+        .btn-side { 
             width: 60px; height: 60px; background: white; border-radius: 15px; 
             border: 1px solid #c6c6c8; display: flex; align-items: center; 
             justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        /* Area Principale - Qui compare la foto accettata */
+        /* Area Principale - La foto riempie TUTTO lo spazio */
         .viewport { 
             flex: 1; 
             background: white; 
             position: relative; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
             overflow: hidden;
         }
 
-        /* Immagine finale adattata nello spazio bianco */
         #final-photo {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Riempie tutto lo spazio bianco */
             display: none;
         }
 
-        /* Modal Fotocamera tutto schermo */
+        /* Overlay Fotocamera tutto schermo */
         .full-screen-cam {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 1000;
+            z-index: 3000;
             background: #000;
             display: none;
         }
@@ -62,31 +58,31 @@
             position: absolute; top: 0; left: 0;
         }
 
-        /* Controlli Verticali a Destra (↺ e ✓) */
+        /* Controlli Verticali a Destra (✓ sopra, ↺ sotto) */
         .controls { 
             position: absolute; 
-            right: 25px; /* Stessa distanza dello shutter */
+            right: 20px; 
             top: 50%;
             transform: translateY(-50%);
             display: none; 
-            flex-direction: column; /* Verticali */
-            gap: 30px; 
-            z-index: 1100; 
+            flex-direction: column;
+            gap: 25px; 
+            z-index: 3100; 
         }
 
         .btn-ui { 
-            width: 70px; /* Leggermente più piccoli dello scatto */
-            height: 70px; 
+            width: 65px; /* Più piccoli dello scatto */
+            height: 65px; 
             border-radius: 50%; 
             display: flex; align-items: center; justify-content: center; 
-            font-size: 30px; color: white; border: none; 
+            font-size: 28px; color: white; border: none; 
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
             cursor: pointer;
         }
-        .retry { background: #ff3b30; } 
-        .ok { background: #34c759; }
+        .ok { background: #34c759; order: 1; } /* ✓ sopra */
+        .retry { background: #ff3b30; order: 2; } /* ↺ sotto */
 
-        /* Pulsante di scatto a destra centrato Y */
+        /* Pulsante di scatto */
         #shutter { 
             position: absolute; 
             right: 20px; 
@@ -95,41 +91,45 @@
             width: 85px; height: 85px; 
             border-radius: 50%; border: 6px solid white; 
             background: rgba(255,255,255,0.2);
-            display: none; z-index: 1050; cursor: pointer;
+            display: none; z-index: 3050; cursor: pointer;
         }
 
+        /* X per uscire */
         #exit-cam {
             position: absolute; top: 40px; right: 20px;
             width: 40px; height: 40px; display: none;
-            background: none; border: none; z-index: 1100;
+            background: none; border: none; z-index: 3100;
         }
         #exit-cam span { position: absolute; width: 30px; height: 3px; background-color: white; border-radius: 2px; }
         #exit-cam span:nth-child(1) { transform: rotate(45deg); }
         #exit-cam span:nth-child(2) { transform: rotate(-45deg); }
 
+        /* Input galleria nascosto */
+        #gallery-input { display: none; }
     </style>
 </head>
 <body>
 
 <div id="app">
     <div class="sidebar">
-        <div class="btn-cam" onclick="attivaCam()">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="btn-side" onclick="attivaCam()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                 <circle cx="12" cy="13" r="4"></circle>
             </svg>
         </div>
-        <div class="btn-cam">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="btn-side" onclick="document.getElementById('gallery-input').click()">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                 <circle cx="8.5" cy="8.5" r="1.5"></circle>
                 <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
         </div>
+        <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
     <div class="viewport">
-        <img id="final-photo" alt="Scatto accettato">
+        <img id="final-photo">
     </div>
 
     <div id="cam-overlay" class="full-screen-cam">
@@ -165,7 +165,7 @@
             exitBtn.style.display = 'block';
             ui.style.display = 'none';
             canvas.style.display = 'none';
-        } catch (e) { alert("Permessi fotocamera negati."); }
+        } catch (e) { alert("Accesso negato."); }
     }
 
     function scatta() {
@@ -176,7 +176,18 @@
         canvas.style.display = 'block';
         sh.style.display = 'none';
         exitBtn.style.display = 'none';
-        ui.style.display = 'flex'; // Mostra ✓ e ↺ in verticale
+        ui.style.display = 'flex';
+    }
+
+    function caricaImmagine(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            finalImg.src = e.target.result;
+            finalImg.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
     }
 
     function reset() {
@@ -188,9 +199,7 @@
     }
 
     function accettaFoto() {
-        // Prende l'immagine dal canvas e la mette nel riquadro bianco
-        const dataURL = canvas.toDataURL('image/png');
-        finalImg.src = dataURL;
+        finalImg.src = canvas.toDataURL('image/png');
         finalImg.style.display = 'block';
         chiudiCam();
     }
