@@ -72,7 +72,7 @@
 
   /* Stile specifico per il cerchio bianco dei tre puntini (non usato nella pillola, rimosso) */
 
-  .close-screen { position: absolute; top: 20px; right: 4px; z-index: 1000; cursor: pointer; }
+  .close-screen { position: absolute; top: 22px; right: 4px; z-index: 1000; cursor: pointer; }
 
   /* Menu Modale */
   .center-overlay {
@@ -97,16 +97,22 @@
   .mini-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; height: 100%; width: 100%; }
   .mini-cell { border: 0.5px solid #d1d1d6; aspect-ratio: 1; }
 
-/* Il Menu a tendina */
+/* Il Menu a tendina allineato al centro della pillola */
 .dropdown-menu {
   position: absolute;
-  top: 0;           /* Parte dall'inizio della pillola */
-  right: 0;         /* Allineato a destra */
-  width: 374px;     /* Meno largo della pillola */
+  top: 0;           
+  
+  /* Posiziona l'inizio del menu a metà della pillola */
+  left: 50%;        
+  
+  /* Sposta il menu a sinistra del 50% della sua larghezza per centrarlo */
+  transform: translateX(-50%); 
+  
+  width: 374px;     
   background-color: #f2f2f7;
-  border-radius: 23px; /* Stessa rotondità della pillola */
+  border-radius: 23px; 
   box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-  display: none;    /* Nascosto di default */
+  display: none;    
   flex-direction: column;
   padding: 266px 0;
   z-index: 1001;
@@ -163,8 +169,8 @@
     </div>
 
     <div id="shareDropdown" class="dropdown-menu">
-      <div class="dropdown-item" onclick="toggleShareDropdown()" style="border-bottom: 1px solid #d1d1d6; justify-content: center; min-height: 50px;">
-        </div>
+     <div class="dropdown-item" onclick="toggleShareDropdown()" style="justify-content: center; min-height: 50px;">
+</div>
     </div>
   </div>
 </div>
