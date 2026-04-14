@@ -248,7 +248,7 @@
     if(currentPath.length > 0) paths.push([...currentPath]);
   });
 
-  function undoLast() {
+ function undoLast() {
     paths.pop();
     redrawCanvas();
   }
@@ -262,6 +262,21 @@
       ctx.lineWidth = 2.5; ctx.stroke();
     });
   }
+
+function toggleShareDropdown() {
+  const dropdown = document.getElementById('shareDropdown');
+  if (dropdown.style.display === 'flex') {
+    dropdown.style.display = 'none';
+  } else {
+    dropdown.style.display = 'flex';
+  }
+}
+
+// Chiudi il menu se l'utente tocca altrove sul canvas
+canvas.addEventListener('pointerdown', () => {
+  document.getElementById('shareDropdown').style.display = 'none';
+});
+
 </script>
 </body>
 </html>
