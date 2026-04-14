@@ -53,7 +53,7 @@
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 
   /* AUMENTA QUESTO VALORE PER SPOSTARE A SINISTRA */
-  margin-right: 252px; 
+  margin-right: 286px; 
 
   /* Gestione altezza (negativo sale, positivo scende) */
   transform: translateY(2px); 
@@ -200,20 +200,51 @@
 
   .center-pill {
     position: absolute;
-    left: 90%;
-    transform: translateX(-50%);
+    right: calc(10% - 94px); /* Calcolato per stare allineato a destra */
     height: 46px;
+    width: 274px; /* Larghezza base */
     background-color: #ffffff;
     border-radius: 23px;
     display: flex;
     align-items: center;
-    padding: 0 81px;
+    padding: 0 117px 0 20px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     z-index: 1000;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 500;
   }
 
+  /* QUESTA È LA PARTE NUOVA PER IL TESTO */
+  .center-pill span {
+    font-size: 17px;       /* Testo leggermente più grande */
+    color: #636366;        /* Colore grigio */
+    font-weight: 500;      /* Peso normale per non farlo sembrare troppo grassetto */
+    pointer-events: none;  /* Evita che il testo interferisca con i click */
+  }
+
+/* Quando è attiva, si allunga verso sinistra perché il contenitore è ancorato a destra */
+.center-pill.active {
+  width: 285px; 
+}
+
+#searchField {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 17px;
+  font-family: inherit;
+  display: none;
+  caret-color: #ff9f0a; /* Barra lampeggiante arancione */
+}
+
+.center-pill.active span {
+  display: none;
+}
+
+.center-pill.active input {
+  display: block !important;
+}
 
 
 </style>
@@ -232,7 +263,9 @@
 
   <div class="spacer"></div>
 
-  <div class="pill-wrapper" style="margin-right: 252px; position: relative;">
+  <div class="pill-wrapper" style="margin-right: 334px; position: relative;
+  transition: transform 0.4s cubic-bezier(0.17, 0.89, 0.32, 1.08);
+  z-index: 1001;">
     <div class="btn-pill-container" style="margin-right: 0;"> 
       
       <div class="btn-ui-inline" onclick="toggleMenu()">
@@ -301,10 +334,11 @@
     </div>
   </div>
 
-  <div class="center-pill">
-    <span>Cerca</span>
-  </div>
-
+<div class="center-pill" onclick="document.getElementById('searchField').focus()">
+  <span id="placeholderText">Cerca...</span>
+  <input type="text" id="searchField" 
+         style="position: absolute; left: 20px; width: calc(100% - 40px); border: none; outline: none; background: transparent; font-size: 17px; font-family: inherit; display: none;">
+</div>
 
 <div class="close-screen" onclick="window.location.href='index.html'">
   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round">
@@ -447,7 +481,32 @@ async function shareContent() {
   }, 'image/png');
 }
 
+const searchField = document.getElementById('searchField');
+const searchPill = document.querySelector('.center-pill');
+const menuPill = document.querySelector('.pill-wrapper');
 
+// Al primo tocco (Focus)
+searchField.addEventListener('focus', () => {
+  // Allunga la pillola (tramite CSS focus-within) e sposta il menu
+  menuPill.style.transform = 'translateX(-170px)'; // Regola questo valore per lo spostamento desiderato
+});
+
+// Quando esci o chiudi (Blur)
+searchField.addEventListener('blur', () => {
+  if (searchField.value === "") {
+    menuPill.style.transform = 'translateX(0)';
+  }
+});
+
+// Gestione INVIO (per chiudere tastiera)
+searchField.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    searchField.blur();
+  }
+});
+
+// Blocca il disegno sul canvas se tocchi la pillola
+searchPill.addEventListener('pointerdown', (e) => e.stopPropagation());
 
 </script>
 </body>
