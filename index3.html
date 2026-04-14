@@ -202,12 +202,12 @@
     position: absolute;
     right: calc(10% - 94px); /* Calcolato per stare allineato a destra */
     height: 46px;
-    width: 274px; /* Larghezza base */
+    width: 246px; /* Larghezza base */
     background-color: #ffffff;
     border-radius: 23px;
     display: flex;
     align-items: center;
-    padding: 0 117px 0 20px;
+    padding: 0 12px 0 15px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     z-index: 1000;
     font-size: 14px;
@@ -247,6 +247,86 @@
 .center-pill.active input {
   display: block !important;
 }
+
+
+.text-input-container {
+  position: absolute;
+  min-width: 50px;
+  max-width: 80%;
+  z-index: 10;
+  background: transparent;
+}
+
+/* L'area di scrittura VERA */
+.text-editable {
+  width: 100%;
+  min-height: 50px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  color: black;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  caret-color: #ff9f0a; /* Cursore arancione */
+  
+  /* TESTO NORMALE (Corpo) */
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+/* TITOLO GIGANTE E GRASSO (Funziona solo sui div editabili) */
+.text-editable::first-line {
+  font-size: 50px;       /* Enorme */
+  font-weight: 900;      /* Super Grasso */
+  line-height: 1.1;
+}
+
+/* Placeholder per il titolo */
+.text-editable:empty:before {
+  content: "Titolo";
+  color: #d1d1d6;
+  pointer-events: none;
+  display: block;
+}
+
+.dictation-dropdown {
+  position: absolute;
+  top: 70px; /* Posizionato sotto la barra superiore */
+  right: 20px;
+  width: 250px;
+  background-color: rgba(242, 242, 247, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+  display: none; /* Nascosto di default */
+  z-index: 2001;
+  padding: 15px;
+  text-align: center;
+}
+
+.dictation-content p {
+  font-size: 14px;
+  margin-bottom: 15px;
+  color: #000;
+}
+
+.dictation-content button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: none;
+  border-radius: 8px;
+  background-color: #fff;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dictation-content button:first-of-type {
+  color: #007aff; /* Colore blu stile iOS */
+}
+
 
 </style>
 </head>
@@ -335,10 +415,34 @@
     </div>
   </div>
 
-<div class="center-pill" onclick="document.getElementById('searchField').focus()">
-  <span id="placeholderText">Cerca...</span>
+<div class="center-pill" id="mainPill" onclick="activateSearch(event)">
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px; flex-shrink: 0;">
+    <circle cx="11" cy="11" r="8"></circle>
+    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    <line x1="16.65" y1="16.65" x2="15.5" y2="22"></line> 
+  </svg>
+  
+  <span id="placeholderText" style="margin-left: -2px;">Cerca...</span>
+  
   <input type="text" id="searchField" 
-         style="position: absolute; left: 20px; width: calc(100% - 40px); border: none; outline: none; background: transparent; font-size: 17px; font-family: inherit; display: none;">
+         style="position: absolute; left: 44px; width: calc(100% - 90px); border: none; outline: none; background: transparent; font-size: 17px; font-family: inherit; display: none;">
+
+  <div style="flex-grow: 1;"></div>
+
+  <svg onclick="activateDictationInPill(event)" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; cursor: pointer;">
+    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+    <line x1="12" y1="19" x2="12" y2="23"></line>
+    <line x1="8" y1="23" x2="16" y2="23"></line>
+  </svg>
+</div>
+
+<div id="dictationMenu" class="dictation-dropdown">
+  <div class="dictation-content">
+    <p>Vuoi abilitare Dettatura?</p>
+    <button onclick="startVoiceRecognition()">Abilita Dettatura</button>
+    <button onclick="toggleDictationMenu(event)">Non ora</button>
+  </div>
 </div>
 
 <div class="close-screen" onclick="window.location.href='index.html'">
@@ -355,6 +459,7 @@
   const ctx = canvas.getContext('2d');
   let paths = []; 
   let currentPath = [];
+  let startPos = { x: 0, y: 0 }; 
 
   function resize() {
     canvas.width = window.innerWidth;
@@ -399,9 +504,19 @@
     currentPath.push({x: e.clientX, y: e.clientY});
   });
 
-  canvas.addEventListener('pointerup', () => {
-    if(currentPath.length > 0) paths.push([...currentPath]);
+   canvas.addEventListener('pointerup', (e) => {
+    // Calcoliamo quanto si è mosso il dito tra inizio e fine tocco
+    const dist = Math.sqrt(Math.pow(e.clientX - startPos.x, 2) + Math.pow(e.clientY - startPos.y, 2));
+    
+    if (dist < 5) {
+      // Se il dito è rimasto fermo (distanza < 5px), scrivi
+      createTextAt(e.clientX, e.clientY);
+    } else if (currentPath.length > 0) {
+      // Se il dito si è mosso, salva il disegno
+      paths.push([...currentPath]);
+    }
   });
+
 
  function undoLast() {
     paths.pop();
@@ -440,10 +555,17 @@ function toggleShareDropdown() {
   }
 }
 
-// Chiudi il menu se l'utente tocca altrove sul canvas
-canvas.addEventListener('pointerdown', () => {
-  document.getElementById('shareDropdown').style.display = 'none';
-});
+  canvas.addEventListener('pointerdown', (e) => {
+    // Chiude il menu share se clicchi sul foglio
+    document.getElementById('shareDropdown').style.display = 'none';
+
+    // Memorizziamo dove inizia il tocco per capire dopo se è un tap o un disegno
+    startPos = { x: e.clientX, y: e.clientY }; 
+    
+    currentPath = [{x: e.clientX, y: e.clientY}];
+    ctx.beginPath();
+    ctx.moveTo(e.clientX, e.clientY);
+  });
 
 
 async function shareContent() {
@@ -516,6 +638,67 @@ searchField.addEventListener('blur', () => {
 });
 
 searchField.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+function createTextAt(x, y) {
+  if (document.querySelector('.text-input-container')) return;
+
+  const container = document.createElement('div');
+  container.className = 'text-input-container';
+  container.style.left = '90px';  
+  container.style.top = '90px';   
+  container.style.width = 'calc(100% - 110px)';
+
+  const editable = document.createElement('div');
+  editable.className = 'text-editable';
+  editable.contentEditable = "true"; // Questo lo rende scrivibile come una textarea
+  editable.spellcheck = false;
+
+  // Rimuove se vuoto quando perdi il focus
+  editable.addEventListener('blur', function() {
+    if (this.innerText.trim() === "") container.remove();
+  });
+
+  // Blocca interferenze col disegno
+  container.addEventListener('pointerdown', (e) => e.stopPropagation());
+
+  container.appendChild(editable);
+  document.body.appendChild(container);
+  
+  // Porta il cursore dentro: sarà GIGANTE
+  setTimeout(() => editable.focus(), 50);
+}
+
+function activateDictationOnScreen(event) {
+  event.stopPropagation();
+  
+  // 1. Controlla se esiste già un'area di testo, altrimenti la crea
+  let editable = document.querySelector('.text-editable');
+  
+  if (!editable) {
+    // Se non c'è, usiamo la tua funzione esistente per crearla
+    createTextAt(90, 90);
+    editable = document.querySelector('.text-editable');
+  }
+
+  // 2. Porta il focus sull'area di testo principale
+  // Su iPad questo aprirà la tastiera con il tasto microfono disponibile
+  if (editable) {
+    editable.focus();
+    
+    // Mostriamo il menu di conferma dettatura che avevi chiesto
+    toggleDictationMenu(event);
+  }
+}
+
+// Modifica la funzione startVoiceRecognition per dare un feedback reale
+function startVoiceRecognition() {
+  const editable = document.querySelector('.text-editable');
+  if (editable) {
+    editable.focus();
+    // Il browser/sistema ora è pronto a ricevere l'input vocale dalla tastiera
+    document.getElementById('dictationMenu').style.display = 'none';
+  }
+}
 
 </script>
 </body>
