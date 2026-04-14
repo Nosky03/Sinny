@@ -48,8 +48,8 @@
   border-radius: 23px;
   display: flex;
   align-items: center;
-  padding: 0 10px;
-  gap: 18px;
+  padding: 0 3px;
+  gap: 14px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.05);
 
   /* AUMENTA QUESTO VALORE PER SPOSTARE A SINISTRA */
@@ -72,7 +72,7 @@
 
   /* Stile specifico per il cerchio bianco dei tre puntini (non usato nella pillola, rimosso) */
 
-  .close-screen { position: absolute; top: 20px; right: 20px; z-index: 1000; cursor: pointer; }
+  .close-screen { position: absolute; top: 25px; right: 4px; z-index: 1000; cursor: pointer; }
 
   /* Menu Modale */
   .center-overlay {
@@ -152,9 +152,12 @@
     </div>
   </div>
 
-  <div class="close-screen" onclick="window.location.href='index.html'">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-  </div>
+<div class="close-screen" onclick="window.location.href='index.html'">
+  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+</div>
 
 <script>
   // Script invariato, gestisce canvas e menu
