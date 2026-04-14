@@ -231,6 +231,7 @@
   width: 100%;
   border: none;
   outline: none;
+  margin-left: -8px;
   background: transparent;
   font-size: 17px;
   font-family: inherit;
@@ -238,8 +239,9 @@
   caret-color: #ff9f0a; /* Barra lampeggiante arancione */
 }
 
-.center-pill.active span {
-  display: none;
+/* Nascondiamo lo span solo tramite una classe speciale gestita in JS */
+.center-pill span.hidden {
+  display: none !important;
 }
 
 .center-pill.active input {
@@ -481,32 +483,40 @@ async function shareContent() {
   }, 'image/png');
 }
 
-const searchField = document.getElementById('searchField');
 const searchPill = document.querySelector('.center-pill');
+const searchField = document.getElementById('searchField');
+const placeholderText = document.getElementById('placeholderText'); // Seleziona lo span
 const menuPill = document.querySelector('.pill-wrapper');
 
-// Al primo tocco (Focus)
-searchField.addEventListener('focus', () => {
-  // Allunga la pillola (tramite CSS focus-within) e sposta il menu
-  menuPill.style.transform = 'translateX(-170px)'; // Regola questo valore per lo spostamento desiderato
+searchPill.addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+
+  searchPill.classList.add('active');
+  searchField.style.display = 'block';
+  menuPill.style.transform = 'translateX(-12px)';
+  
+  searchField.focus();
 });
 
-// Quando esci o chiudi (Blur)
+// GESTIONE SCRITTURA: Scompare lo span solo se scrivo
+searchField.addEventListener('input', () => {
+  if (searchField.value.length > 0) {
+    placeholderText.classList.add('hidden'); // Nasconde "Cerca..."
+  } else {
+    placeholderText.classList.remove('hidden'); // Ritorna se svuoto il testo
+  }
+});
+
 searchField.addEventListener('blur', () => {
   if (searchField.value === "") {
+    searchPill.classList.remove('active');
+    searchField.style.display = 'none';
+    placeholderText.classList.remove('hidden'); // Reset per sicurezza
     menuPill.style.transform = 'translateX(0)';
   }
 });
 
-// Gestione INVIO (per chiudere tastiera)
-searchField.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    searchField.blur();
-  }
-});
-
-// Blocca il disegno sul canvas se tocchi la pillola
-searchPill.addEventListener('pointerdown', (e) => e.stopPropagation());
+searchField.addEventListener('pointerdown', (e) => e.stopPropagation());
 
 </script>
 </body>
