@@ -254,7 +254,8 @@
     box-shadow: 0 0 10px #FFD60A, 0 0 20px rgba(255, 214, 10, 0.5);
     border: 1px solid white;
     pointer-events: none;
-    transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */
+    transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */ 
+    will-change: transform; /* Aiuta il browser a rendere il movimento fluido */
 }
 
 /* Il mirino centrale */
@@ -417,6 +418,8 @@
     // Stato AR
     let arPoints = [];
     let isMapping = false;
+   let deviceRotation = { alpha: 0, beta: 0, gamma: 0 };
+let initialRotation = null;
 
     // --- ETICHETTE ---
     const etichettePantaloni = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", "Tessuto Close-up", "Orlo Fondo", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
@@ -617,6 +620,26 @@ function renderLines() {
     function aggiornaAnteprimaGalleria(sorgente) {
         document.getElementById('btn-gallery').innerHTML = `<img src="${sorgente}" style="width:100%; height:100%; object-fit:cover;">`;
     }
+
+function attivaSensori() {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+            .then(response => {
+                if (response == 'granted') window.addEventListener('deviceorientation', handleRotation);
+            });
+    } else {
+        window.addEventListener('deviceorientation', handleRotation);
+    }
+}
+
+function handleRotation(e) {
+    if (!initialRotation) initialRotation = { a: e.alpha, b: e.beta, g: e.gamma };
+    deviceRotation.alpha = e.alpha - initialRotation.a;
+    deviceRotation.beta = e.beta - initialRotation.b;
+    deviceRotation.gamma = e.gamma - initialRotation.g;
+}
+
+
 </script>
 
 </body>
