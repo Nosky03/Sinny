@@ -58,36 +58,46 @@
     align-items: flex-end; /* Allinea a destra come la label */
 }
 
-    /* Aspetto standard: Cerchio (per scatto normale) */
+/* Bottoni UI Base */
 .btn-ui { 
-    width: 46px; 
-    height: 46px; 
-    border-radius: 50%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    font-size: 24px; /* Ridotto leggermente per far stare il testo dopo */
-    color: white; 
-    border: none; 
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    transition: all 0.2s ease; /* Per un passaggio fluido da cerchio a pillola */
+    width: 50px; height: 50px; border-radius: 50%; display: flex; 
+    align-items: center; justify-content: center; font-size: 20px; 
+    color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
 }
 
-/* Trasformazione in pillola: si attiva solo in modalità "Cosa è" */
+/* Modalità Cosa è: Trasforma in contenitori rettangolari larghi come la label gialla */
 .btn-ui.pill {
-    width: auto; 
-    min-width: 70px; /* Un po' più largo per contenere bene OK/RETRY */
+    width: 85px; /* Larghezza adeguata alla label "COSA È?" */
     height: 32px; 
     border-radius: 10px;
-    padding: 0 12px;
-    font-size: 12px; /* Font più piccolo per il testo */
+    font-size: 11px;
     font-weight: bold;
-    text-transform: uppercase;
 }
 
 /* Colori e ordine */
 .ok { background: #34c759; order: 1; }
 .retry { background: #ff3b30; order: 2; }
+
+/* Simbolo Retry come freccia curva per modalità semplice */
+.retry::before { content: '⤶'; font-size: 28px; }
+.btn-ui.pill.retry::before { content: 'RIPROVA'; font-size: 11px; }
+
+/* Sticker per trascinamento multiplo */
+.multi-sticker {
+    position: fixed;
+    pointer-events: none;
+    z-index: 6000;
+    transition: transform 0.1s ease;
+}
+
+.stacked-photo {
+    position: absolute;
+    width: 100%; height: 100%;
+    border: 2px solid white;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+    object-fit: cover;
+}
 
         #shutter { 
             position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
@@ -645,13 +655,27 @@
         }
     }
 
-    function aggiornaNomiGriglia() {
-        const cells = document.querySelectorAll('.grid-cell');
-        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : (tipoCorrente === "Pantalone" ? etichettePantaloni : Array(12).fill("Oggetto"));
-        cells.forEach((cell, i) => {
-            if (!cell.classList.contains('filled')) cell.setAttribute('data-label', labels[i] || "Extra");
-        });
+   function aggiornaNomiGriglia(puntiRilevati) {
+    const cells = document.querySelectorAll('.grid-cell');
+    let labels = [];
+
+    if (puntiRilevati >= 12) {
+        // Modalità Maglia (10 + 2 extra)
+        labels = [...etichetteMaglie.slice(0, 10), "EXTRA 1", "EXTRA 2"];
+        tipoCorrente = "Maglia";
+    } else {
+        // Modalità Pantalone (8 + 2 extra + 2 vuoti/oggetto)
+        labels = [...etichettePantaloni.slice(0, 8), "EXTRA 1", "EXTRA 2", "OGGETTO", "OGGETTO"];
+        tipoCorrente = "Pantalone";
     }
+
+    cells.forEach((cell, i) => {
+        if (!cell.classList.contains('filled')) {
+            cell.setAttribute('data-label', labels[i]);
+        }
+    });
+}
+
 
 // --- INTELLIGENZA ARTIFICIALE (SISTEMA MANUALE PUNTI) ---
 
@@ -731,6 +755,11 @@ function disegnaPunti() {
 function rimuoviUltimoPunto() {
     manualPoints.pop();
     disegnaPunti();
+    
+    // Riabilita immediatamente il layer per mettere nuovi punti
+    const layer = document.getElementById('drawing-layer');
+    layer.classList.remove('allow-buttons');
+    isManualMode = true; 
 }
 
 function concludiPunti() {
@@ -763,6 +792,75 @@ function reset() {
     layer.style.display = 'none';
     layer.classList.remove('allow-buttons');
 }
+
+
+let isDraggingAll = false;
+let dragContainer = null;
+let pressTimer;
+
+function setupMultiDrag() {
+    const cells = document.querySelectorAll('.grid-cell');
+    
+    cells.forEach(cell => {
+        cell.onpointerdown = (e) => {
+            pressTimer = setTimeout(() => startMultiDrag(e), 800);
+        };
+        cell.onpointerup = () => clearTimeout(pressTimer);
+    });
+}
+
+function startMultiDrag(e) {
+    const filledCells = document.querySelectorAll('.grid-cell.filled img');
+    if (filledCells.length === 0) return;
+
+    isDraggingAll = true;
+    dragContainer = document.createElement('div');
+    dragContainer.className = 'multi-sticker';
+    dragContainer.style.width = '100px'; 
+    dragContainer.style.height = '120px';
+
+    // Crea la pila di foto
+    filledCells.forEach((img, index) => {
+        const copy = img.cloneNode();
+        copy.className = 'stacked-photo';
+        copy.style.transform = `translate(${index * 3}px, ${-index * 3}px)`;
+        copy.style.zIndex = 100 - index;
+        dragContainer.appendChild(copy);
+    });
+
+    document.body.appendChild(dragContainer);
+    moveDrag(e);
+}
+
+document.onpointermove = (e) => {
+    if (isDraggingAll && dragContainer) moveDrag(e);
+};
+
+function moveDrag(e) {
+    dragContainer.style.left = (e.clientX - 50) + 'px';
+    dragContainer.style.top = (e.clientY - 60) + 'px';
+}
+
+document.onpointerup = (e) => {
+    if (isDraggingAll) {
+        const galleryBtn = document.getElementById('btn-gallery').getBoundingClientRect();
+        
+        // Verifica se rilasciato sopra il tasto galleria
+        if (e.clientX > galleryBtn.left && e.clientX < galleryBtn.right &&
+            e.clientY > galleryBtn.top && e.clientY < galleryBtn.bottom) {
+            alert("Foto salvate nella galleria del dispositivo!");
+        }
+        
+        dragContainer.remove();
+        dragContainer = null;
+        isDraggingAll = false;
+    }
+};
+
+// Avvia il setup al caricamento
+creaGriglia();
+setupMultiDrag();
+
 
 </script>
 
