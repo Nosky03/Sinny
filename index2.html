@@ -49,7 +49,7 @@
 .controls { 
     position: absolute; 
     right: 20px; 
-    top: calc(50% + 140px); /* Spostati più in basso rispetto al centro e alla label */
+    top: calc(50% + 120px); /* Spostati più in basso rispetto al centro e alla label */
     display: none; 
     flex-direction: column; 
     gap: 15px; 
@@ -57,7 +57,7 @@
 }
 
         .btn-ui { 
-            width: 65px; height: 65px; border-radius: 50%; display: flex; 
+            width: 46px; height: 46px; border-radius: 50%; display: flex; 
             align-items: center; justify-content: center; font-size: 28px; 
             color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
@@ -525,11 +525,39 @@
         chiudiCam();
     }
 
-   function chiudiCam() {
-    if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+  function chiudiCam() {
+    // 1. Spegne lo streaming video
+    if (v.srcObject) {
+        v.srcObject.getTracks().forEach(t => t.stop());
+        v.srcObject = null;
+    }
+    
+    // 2. Nasconde l'overlay
     overlay.style.display = 'none';
-    // Rimuove eventuali puntini rimasti
-    document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+
+    // 3. RESET TOTALE (Foto semplice e Modalità Cosa è)
+    manualPoints = []; // Cancella i punti messi
+    if (document.getElementById('clothing-shape')) {
+        document.getElementById('clothing-shape').innerHTML = ''; // Rimuove il disegno giallo
+    }
+    
+    // Reset stati IA
+    tipoCorrente = "Nessun vestito";
+    riconoscimentoAvvenuto = false;
+    isManualMode = false;
+    
+    const layer = document.getElementById('drawing-layer');
+    if (layer) {
+        layer.style.display = 'none';
+        layer.classList.remove('allow-buttons');
+        layer.querySelectorAll('.manual-dot').forEach(d => d.remove());
+    }
+
+    // Reset interfaccia
+    ui.style.display = 'none';
+    sh.style.display = 'none';
+    document.getElementById('ai-header').style.display = 'none';
+    document.getElementById('ai-label').style.display = 'none';
 }
 
 
