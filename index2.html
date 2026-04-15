@@ -244,6 +244,17 @@
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
+/* Puntini di scansione animati */
+.scan-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #FFD60A;
+    border-radius: 50%;
+    z-index: 3500;
+    box-shadow: 0 0 10px #FFD60A;
+    pointer-events: none;
+}
 
     </style>
 </head>
@@ -440,10 +451,13 @@
         chiudiCam();
     }
 
-    function chiudiCam() {
-        if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-        overlay.style.display = 'none';
-    }
+   function chiudiCam() {
+    if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+    overlay.style.display = 'none';
+    // Rimuove eventuali puntini rimasti
+    document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+}
+
 
     function reset() {
         v.style.display = 'block'; 
@@ -495,15 +509,27 @@
     }
 
     // --- INTELLIGENZA ARTIFICIALE (RITAGLIO & RECOG) ---
-    function toggleRecognition() {
-        const label = document.getElementById('ai-label');
-        if (tipoCorrente === "Nessun vestito") tipoCorrente = "Pantalone";
-        else if (tipoCorrente === "Pantalone") tipoCorrente = "Maglia";
-        else tipoCorrente = "Nessun vestito";
-        
-        label.innerText = "RILEVATO: " + tipoCorrente.toUpperCase();
-        riconoscimentoAvvenuto = (tipoCorrente !== "Nessun vestito");
+   function toggleRecognition() {
+    const aiLabel = document.getElementById('ai-label');
+    const aiHeader = document.getElementById('ai-header');
+
+    if (tipoCorrente === "Nessun vestito") {
+        tipoCorrente = "Maglia";
+        mostraPuntiScansione(); // Avvia i 12 puntini
+    } else if (tipoCorrente === "Maglia") {
+        tipoCorrente = "Pantalone";
+        aiHeader.innerText = "RICONOSCIMENTO...";
+        aiHeader.style.color = "white";
+        aiLabel.innerText = "RILEVATO: PANTALONE";
+        riconoscimentoAvvenuto = true;
+    } else {
+        tipoCorrente = "Nessun vestito";
+        aiHeader.style.display = 'none';
+        aiLabel.innerText = "COSA È?";
+        riconoscimentoAvvenuto = false;
     }
+}
+
 
     function attivaRitaglio() {
         if (finalImg.style.display === 'none' || !finalImg.src) return;
@@ -590,6 +616,58 @@
 
         finalImg.src = tempCanvas.toDataURL('image/png');
     }
+
+    function mostraPuntiScansione() {
+    const aiLabel = document.getElementById('ai-label');
+    const aiHeader = document.getElementById('ai-header');
+    
+    aiLabel.innerText = "ANALISI IN CORSO...";
+    
+    // Crea 12 punti di scansione
+    for (let i = 0; i < 12; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'scan-dot';
+        
+        // Distribuzione casuale/circolare al centro della camera
+        const angle = (i / 12) * Math.PI * 2;
+        const x = 50 + Math.cos(angle) * 20 + (Math.random() * 5);
+        const y = 50 + Math.sin(angle) * 25 + (Math.random() * 5);
+        
+        dot.style.left = x + '%';
+        dot.style.top = y + '%';
+        overlay.appendChild(dot);
+
+        // Animazione di apparizione "Apple Style"
+        dot.animate([
+            { transform: 'scale(0)', opacity: 0 },
+            { transform: 'scale(1.2)', opacity: 1 },
+            { transform: 'scale(1)', opacity: 1 }
+        ], { duration: 300, delay: i * 70, fill: 'forwards' });
+    }
+
+    // Dopo 1.5 secondi conferma il riconoscimento
+    setTimeout(() => {
+        // Rimuove i puntini
+        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+        
+        // Conferma visiva in alto
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = "MAGLIA CONFERMATA";
+        aiHeader.style.color = "#FFD60A"; // Giallo per la conferma
+        
+        // Aggiorna l'etichetta del tasto
+        aiLabel.innerText = "RILEVATO: MAGLIA";
+        riconoscimentoAvvenuto = true;
+
+        // Feedback: piccola vibrazione dell'header
+        aiHeader.animate([
+            { transform: 'translateX(-50%) scale(1)' },
+            { transform: 'translateX(-50%) scale(1.1)' },
+            { transform: 'translateX(-50%) scale(1)' }
+        ], { duration: 200 });
+    }, 1600);
+}
+
 </script>
 
 </body>
