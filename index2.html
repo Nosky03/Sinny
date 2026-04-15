@@ -94,6 +94,14 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
+       /* Stile per il tasto ritaglio quando è attivo */
+.btn-side.active {
+    background: #d1d1d6;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+    border-color: #a1a1a6;
+}
+
+
     </style>
 </head>
 <body>
@@ -124,9 +132,16 @@
     </svg>
 </div>
 
-        <div class="btn-side" onclick="attivaRitaglio()" title="Ritaglio Manuale">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" stroke-width="2"><path d="M6 2L3 5l12 12h3l3-3V11L6 2z"></path><line x1="3" y1="21" x2="15" y2="9"></line></svg>
-        </div>
+<div class="btn-side" id="btn-crop" onclick="attivaRitaglio()" title="Ritaglio Manuale">
+    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="6" cy="6" r="3"></circle>
+        <circle cx="6" cy="18" r="3"></circle>
+        <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+        <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+        <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+    </svg>
+</div>
+
         <div class="btn-side" onclick="modalitaRA()" id="btn-ra">
             R.A.
         </div>
@@ -307,12 +322,68 @@
 }
 
 
-    function attivaRitaglio() {
-        if (finalImg.style.display === 'none') return;
-        cropCanvas.width = finalImg.clientWidth;
-        cropCanvas.height = finalImg.clientHeight;
+   let isDrawing = false;
+let cropActive = false;
+
+function attivaRitaglio() {
+    if (finalImg.style.display === 'none' || finalImg.style.display === '') return;
+
+    cropActive = !cropActive;
+    const btn = document.getElementById('btn-crop');
+    
+    if (cropActive) {
+        btn.classList.add('active');
+        cropCanvas.width = finalImg.offsetWidth;
+        cropCanvas.height = finalImg.offsetHeight;
         cropCanvas.style.display = 'block';
+        initDrawing();
+    } else {
+        btn.classList.remove('active');
+        cropCanvas.style.display = 'none';
+        ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
     }
+}
+
+function initDrawing() {
+    // Configurazione stile linea: TRATTEGGIATA
+    ctxCrop.strokeStyle = "white"; // Colore contrastante sulla foto
+    ctxCrop.lineWidth = 3;
+    ctxCrop.setLineDash([10, 10]); // Tratteggio: 10px linea, 10px spazio
+    ctxCrop.lineCap = "round";
+
+    // Eventi Mouse/Touch
+    const start = (e) => {
+        isDrawing = true;
+        ctxCrop.beginPath();
+        const rect = cropCanvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        ctxCrop.moveTo(x, y);
+    };
+
+    const move = (e) => {
+        if (!isDrawing) return;
+        e.preventDefault();
+        const rect = cropCanvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        ctxCrop.lineTo(x, y);
+        ctxCrop.stroke();
+    };
+
+    const stop = () => {
+        isDrawing = false;
+    };
+
+    cropCanvas.onmousedown = start;
+    cropCanvas.onmousemove = move;
+    window.onmouseup = stop;
+
+    cropCanvas.ontouchstart = start;
+    cropCanvas.ontouchmove = move;
+    cropCanvas.ontouchend = stop;
+}
+
 
 function aggiornaAnteprimaGalleria(sorgente) {
     const btnGallery = document.getElementById('btn-gallery');
