@@ -307,17 +307,10 @@
 
 <div class="viewport" id="viewport">
     <img id="final-photo">
-    
     <canvas id="crop-canvas"></canvas>
-    
     <div id="grid-container"></div>
 </div>
 
-
-        
-        <img id="final-photo">
-        <canvas id="crop-canvas"></canvas>
-    </div>
 
 
 
@@ -336,6 +329,7 @@
 </div>
 
 <script>
+    // --- RIFERIMENTI DOM ---
     const v = document.getElementById('v');
     const canvas = document.getElementById('preview-canvas');
     const ui = document.getElementById('ui');
@@ -345,415 +339,132 @@
     const finalImg = document.getElementById('final-photo');
     const cropCanvas = document.getElementById('crop-canvas');
     const ctxCrop = cropCanvas.getContext('2d');
+    const viewport = document.getElementById('viewport');
 
-   let modeRA = false;
-let modeCatalogo = false; // Aggiunta
-let drawPoints = []; 
-let tipoCorrente = "Nessun vestito"; 
-let riconoscimentoAvvenuto = false;
-let targetCell = null;
+    // --- STATO APPLICAZIONE ---
+    let modeRA = false;
+    let modeCatalogo = false;
+    let drawPoints = []; 
+    let tipoCorrente = "Pantalone"; 
+    let riconoscimentoAvvenuto = false;
+    let targetCell = null;
+    let isDrawing = false;
+    let cropActive = false;
 
+    // --- ETICHETTE ---
+    const etichettePantaloni = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", "Tessuto Close-up", "Orlo Fondo", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
+    const etichetteMaglie = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", "Tessuto Close-up", "Dettaglio Polsino", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
 
-
-    // --- LOGICA R.A. AGGIORNATA ---
-    function modalitaRA() {
-        if (finalImg.style.display === 'none' || finalImg.src === "") {
-            alert("Scatta o carica una foto prima!");
-            return;
-        }
-        modeRA = !modeRA;
+    // --- GESTIONE IMMAGINE (GALLERIA) ---
+    function caricaImmagine(event) {
+        const file = event.target.files[0];
+        if (!file) return;
         
-        const btn = document.getElementById('btn-ra');
-        const circles = btn.querySelectorAll('circle');
-        const texts = btn.querySelectorAll('text');
+        const reader = new FileReader();
+        reader.onload = (e) => { 
+            // Se la griglia è aperta, la chiudiamo per vedere la foto
+            if (modeCatalogo) modalitaCatalogo(); 
+            
+            finalImg.src = e.target.result; 
+            finalImg.style.display = 'block'; // Rende visibile l'immagine nello spazio bianco
+            
+            aggiornaAnteprimaGalleria(e.target.result); 
+        };
+        reader.readAsDataURL(file);
+    }
 
-        if (modeRA) {
-            // Stato Attivo: Blu con icone bianche
-            btn.style.background = '#007AFF';
-            circles.forEach(c => c.setAttribute('stroke', 'white'));
-            texts.forEach(t => t.setAttribute('fill', 'white'));
+    function aggiornaAnteprimaGalleria(sorgente) {
+        const btnGallery = document.getElementById('btn-gallery');
+        btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    }
+
+    // --- FOTOCAMERA ---
+    async function attivaCam() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            v.srcObject = stream;
+            
+            if (!targetCell) {
+                tipoCorrente = "Nessun vestito";
+                riconoscimentoAvvenuto = false;
+            }
+
+            overlay.style.display = 'block';
+            v.style.display = 'block'; 
+            sh.style.display = 'block'; 
+            exitBtn.style.display = 'block';
+            
+            document.getElementById('ai-label').style.display = targetCell ? 'none' : 'block';
+            document.getElementById('ai-label').innerText = "COSA È?";
+            document.getElementById('ai-header').style.display = 'none';
+            
+            ui.style.display = 'none'; 
+            canvas.style.display = 'none';
+        } catch (e) { alert("Errore fotocamera: controlla i permessi."); }
+    }
+
+    function scatta() {
+        canvas.width = v.videoWidth; 
+        canvas.height = v.videoHeight;
+        canvas.getContext('2d').drawImage(v, 0, 0);
+        
+        v.style.display = 'none'; 
+        canvas.style.display = 'block';
+        sh.style.display = 'none'; 
+        exitBtn.style.display = 'none'; 
+        ui.style.display = 'flex';
+        
+        const header = document.getElementById('ai-header');
+        header.style.display = 'block';
+        header.innerText = (tipoCorrente === "Nessun vestito") ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
+    }
+
+    function accettaFoto() {
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        if (targetCell) {
+            targetCell.innerHTML = `<img src="${dataUrl}">`;
+            targetCell.classList.add('filled');
+            targetCell = null;
+        } else if (riconoscimentoAvvenuto) {
+            finalImg.style.display = 'none'; 
+            if (!modeCatalogo) modalitaCatalogo(); 
+            aggiornaNomiGriglia();
         } else {
-            // Stato Inattivo: Bianco con icone nere
-            btn.style.background = 'white';
-            circles.forEach(c => c.setAttribute('stroke', 'black'));
-            texts.forEach(t => t.setAttribute('fill', 'black'));
-        }
-    }
-
-
-function eseguiRitaglioAutomatico(e) {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    const w = finalImg.naturalWidth;
-    const h = finalImg.naturalHeight;
-    tempCanvas.width = w;
-    tempCanvas.height = h;
-
-    tempCtx.drawImage(finalImg, 0, 0, w, h);
-    const imageData = tempCtx.getImageData(0, 0, w, h);
-    const pixels = imageData.data;
-
-    // Logica rimozione sfondo (Soglia luminosità)
-    for (let i = 0; i < pixels.length; i += 4) {
-        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-        if (brightness > 200) pixels[i + 3] = 0;
-    }
-    tempCtx.putImageData(imageData, 0, 0);
-
-    // Creazione dello Sticker
-    const sticker = document.createElement('img');
-    sticker.src = tempCanvas.toDataURL('image/png');
-    sticker.className = 'sticker';
-    
-    // Posizionamento iniziale perfetto sopra l'immagine
-    const rect = finalImg.getBoundingClientRect();
-    sticker.style.width = rect.width + 'px';
-    sticker.style.height = rect.height + 'px';
-    sticker.style.left = rect.left + 'px';
-    sticker.style.top = rect.top + 'px';
-
-    document.getElementById('viewport').appendChild(sticker);
-
-    // Animazione sollevamento
-    setTimeout(() => {
-        sticker.style.transform = "scale(1.05) translateY(-10px)";
-    }, 10);
-
-    initDraggableSticker(sticker);
-
-    // Reset interfaccia
-    finalImg.classList.remove('ai-active');
-    modeRA = false;
-    document.getElementById('btn-ra').style.background = 'white';
-    const svgEls = document.getElementById('btn-ra').querySelectorAll('circle, text');
-    svgEls.forEach(el => el.setAttribute(el.tagName === 'circle' ? 'stroke' : 'fill', 'black'));
-}
-
-function initDraggableSticker(el) {
-    let offsetX, offsetY;
-
-    const start = (e) => {
-        const touch = e.touches ? e.touches[0] : e;
-        offsetX = touch.clientX - el.offsetLeft;
-        offsetY = touch.clientY - el.offsetTop;
-        el.classList.add('dragging');
-    };
-
-    const move = (e) => {
-        if (!el.classList.contains('dragging')) return;
-        e.preventDefault();
-        const touch = e.touches ? e.touches[0] : e;
-        el.style.left = (touch.clientX - offsetX) + 'px';
-        el.style.top = (touch.clientY - offsetY) + 'px';
-    };
-
-    const stop = () => {
-        el.classList.remove('dragging');
-    };
-
-    el.onmousedown = start;
-    window.onmousemove = move;
-    window.onmouseup = stop;
-
-    el.ontouchstart = start;
-    el.ontouchmove = move;
-    el.ontouchend = stop;
-}
-
-
-async function attivaCam() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
-        });
-        v.srcObject = stream;
-        
-        // Se non stiamo scattando per una cella specifica, resettiamo il riconoscimento
-        if (!targetCell) {
-            tipoCorrente = "Nessun vestito";
-            riconoscimentoAvvenuto = false;
+            if (modeCatalogo) modalitaCatalogo();
+            finalImg.src = dataUrl;
+            finalImg.style.display = 'block';
         }
 
-        overlay.style.display = 'block';
-        v.style.display = 'block'; 
-        sh.style.display = 'block'; 
-        exitBtn.style.display = 'block';
-        
-        // Mostra il tasto giallo solo se NON stiamo già lavorando dentro la griglia
-        document.getElementById('ai-label').style.display = targetCell ? 'none' : 'block';
-        document.getElementById('ai-label').innerText = "COSA È?";
-        document.getElementById('ai-header').style.display = 'none';
-        
-        ui.style.display = 'none'; 
-        canvas.style.display = 'none';
-    } catch (e) { 
-        console.error(e);
-        alert("Errore accesso fotocamera. Verifica i permessi."); 
-    }
-}
-
-
-function scatta() {
-    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-    canvas.getContext('2d').drawImage(v, 0, 0);
-    
-    v.style.display = 'none'; canvas.style.display = 'block';
-    sh.style.display = 'none'; exitBtn.style.display = 'none'; ui.style.display = 'flex';
-    
-    // Mostra Header in alto con il verdetto
-    const header = document.getElementById('ai-header');
-    header.style.display = 'block';
-    header.innerText = tipoCorrente === "Nessun vestito" ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
-    
-    document.getElementById('ai-label').style.display = 'none';
-}
-
-  
-
-    function reset() {
-        v.style.display = 'block'; canvas.style.display = 'none';
-        sh.style.display = 'block'; ui.style.display = 'none'; exitBtn.style.display = 'block';
-    }
-
-function accettaFoto() {
-    const dataUrl = canvas.toDataURL('image/png');
-    
-    // CASO 1: Scatto dentro un quadrante della griglia
-    if (targetCell) {
-        targetCell.innerHTML = `<img src="${dataUrl}">`;
-        targetCell.classList.add('filled');
-        targetCell = null;
+        aggiornaAnteprimaGalleria(dataUrl);
         chiudiCam();
-        return; 
     }
-
-    // CASO 2: Scatto con Riconoscimento attivo (Mostra Griglia)
-    if (riconoscimentoAvvenuto) {
-        finalImg.style.display = 'none'; // Nasconde la foto singola
-        if (!modeCatalogo) modalitaCatalogo(); // Attiva la griglia
-        aggiornaNomiGriglia();
-    } 
-    // CASO 3: Scatto semplice (Mostra Foto per Ritaglio)
-    else {
-        if (modeCatalogo) modalitaCatalogo(); // Chiude la griglia se era aperta
-        finalImg.src = dataUrl;
-        finalImg.style.display = 'block';
-    }
-
-    aggiornaAnteprimaGalleria(dataUrl);
-    chiudiCam();
-}
-
-function aggiornaNomiGriglia() {
-    const cells = document.querySelectorAll('.grid-cell');
-    
-    // Sceglie il set di etichette in base al riconoscimento
-    let setEtichette = [];
-    if (tipoCorrente === "Maglia") {
-        setEtichette = etichetteMaglie;
-    } else if (tipoCorrente === "Pantalone") {
-        setEtichette = etichettePantaloni;
-    } else {
-        // Se non è riconosciuto, mette etichette generiche
-        setEtichette = Array(12).fill("Oggetto");
-    }
-
-    cells.forEach((cell, i) => {
-        // Aggiorna solo i quadranti che non hanno già una foto
-        if (!cell.classList.contains('filled')) {
-            cell.setAttribute('data-label', setEtichette[i] || "Extra");
-        }
-    });
-}
-
 
     function chiudiCam() {
         if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
         overlay.style.display = 'none';
     }
 
-   function caricaImmagine(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => { 
-        finalImg.src = e.target.result; 
-        finalImg.style.display = 'block'; 
-        aggiornaAnteprimaGalleria(e.target.result); // Aggiorna il quadratino
-    };
-    reader.readAsDataURL(file);
-}
-
-
-   let isDrawing = false;
-let cropActive = false;
-
-function attivaRitaglio() {
-    if (finalImg.style.display === 'none' || finalImg.style.display === '') return;
-
-    cropActive = !cropActive;
-    const btn = document.getElementById('btn-crop');
-    
-    if (cropActive) {
-        btn.classList.add('active');
-        
-        // --- ALTA DEFINIZIONE ---
-        const dpr = window.devicePixelRatio || 1;
-        const rect = viewport.getBoundingClientRect();
-        cropCanvas.width = rect.width * dpr;
-        cropCanvas.height = rect.height * dpr;
-        cropCanvas.style.width = rect.width + "px";
-        cropCanvas.style.height = rect.height + "px";
-        ctxCrop.scale(dpr, dpr);
-        // ------------------------
-
-        cropCanvas.style.display = 'block';
-        initDrawing();
-    } else {
-        btn.classList.remove('active');
-        cropCanvas.style.display = 'none';
-        ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+    function reset() {
+        v.style.display = 'block'; 
+        canvas.style.display = 'none';
+        sh.style.display = 'block'; 
+        ui.style.display = 'none'; 
+        exitBtn.style.display = 'block';
     }
-}
 
-function initDrawing() {
-    // Configurazione stile linea: TRATTEGGIATA
-    ctxCrop.strokeStyle = "white"; // Colore contrastante sulla foto
-    ctxCrop.lineWidth = 3;
-    ctxCrop.setLineDash([10, 10]); // Tratteggio: 10px linea, 10px spazio
-    ctxCrop.lineCap = "round";
-
-    const start = (e) => {
-        isDrawing = true;
-        drawPoints = []; // Resetta i punti
-        ctxCrop.beginPath();
-        const rect = cropCanvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        ctxCrop.moveTo(x, y);
-        drawPoints.push({x, y});
-    };
-
-    const move = (e) => {
-        if (!isDrawing) return;
-        e.preventDefault();
-        const rect = cropCanvas.getBoundingClientRect();
-        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-        ctxCrop.lineTo(x, y);
-        ctxCrop.stroke();
-        drawPoints.push({x, y}); // Salva il punto
-    };
-
-       const stop = () => {
-        if (!isDrawing) return;
-        isDrawing = false;
-        ctxCrop.closePath(); // Chiude la forma
-        
-        // Simula l'effetto "Apple Intelligence" prima del taglio
-        finalImg.classList.add('ai-active');
-        
-        setTimeout(() => {
-            eseguiTaglioManuale();
-            finalImg.classList.remove('ai-active');
-            attivaRitaglio(); // Disattiva lo strumento dopo il taglio
-        }, 600);
-    };
-
-
-    cropCanvas.onmousedown = start;
-    cropCanvas.onmousemove = move;
-    window.onmouseup = stop;
-
-    cropCanvas.ontouchstart = start;
-    cropCanvas.ontouchmove = move;
-    cropCanvas.ontouchend = stop;
-}
-
-
-function aggiornaAnteprimaGalleria(sorgente) {
-    const btnGallery = document.getElementById('btn-gallery');
-    // Inserisce l'immagine scattata/caricata dentro il quadratino al posto dell'SVG
-    btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
-}
-
-
-function eseguiTaglioManuale() {
-    if (drawPoints.length < 3) return;
-
-    const tempCanvas = document.createElement('canvas');
-    const tCtx = tempCanvas.getContext('2d');
-    
-    tempCanvas.width = finalImg.naturalWidth;
-    tempCanvas.height = finalImg.naturalHeight;
-
-    // Rapporto tra dimensione reale immagine e dimensione visualizzata a schermo
-    const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
-    const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
-
-    // 1. Creiamo la maschera basata sui punti disegnati
-    tCtx.beginPath();
-    tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
-    for (let i = 1; i < drawPoints.length; i++) {
-        tCtx.lineTo(drawPoints[i].x * scaleX, drawPoints[i].y * scaleY);
+    // --- CATALOGO E GRIGLIA ---
+    function creaGriglia() {
+        const container = document.getElementById('grid-container');
+        container.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.setAttribute('data-label', etichettePantaloni[i]); 
+            cell.onclick = () => { targetCell = cell; attivaCam(); };
+            container.appendChild(cell);
+        }
     }
-    tCtx.closePath();
-
-    // 2. Ritagliamo l'immagine
-    tCtx.clip(); 
-    tCtx.drawImage(finalImg, 0, 0, tempCanvas.width, tempCanvas.height);
-    
-    // 3. Applichiamo lo sfondo bianco (opzionale, se vuoi trasparenza rimuovi le righe sotto)
-    const finalCanvas = document.createElement('canvas');
-    finalCanvas.width = tempCanvas.width;
-    finalCanvas.height = tempCanvas.height;
-    const fCtx = finalCanvas.getContext('2d');
-    fCtx.fillStyle = "white"; // Sfondo bianco
-    fCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-    fCtx.drawImage(tempCanvas, 0, 0);
-
-    // Aggiorna l'immagine visualizzata
-    finalImg.src = finalCanvas.toDataURL('image/png');
-    
-    // Feedback Apple Style
-    finalImg.style.transform = "scale(1.05)";
-    setTimeout(() => finalImg.style.transform = "scale(1)", 300);
-}
-
-    let modeCatalogo = false;
-    let targetCell = null;
-
- const etichettePantaloni = [
-    "Fronte", "Retro", "Etichetta Taglia", 
-    "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", 
-    "Tessuto Close-up", "Orlo Fondo", "Indossato", 
-    "Misure Metro", "Extra 1", "Extra 2"
-];
-
-const etichetteMaglie = [
-    "Fronte", "Retro", "Etichetta Taglia", 
-    "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", 
-    "Tessuto Close-up", "Dettaglio Polsino", "Indossato", 
-    "Misure Metro", "Extra 1", "Extra 2"
-];
-
-let tipoCorrente = "Pantalone"; // Default
-
-
-function creaGriglia() {
-    const container = document.getElementById('grid-container');
-    container.innerHTML = '';
-    for (let i = 0; i < 12; i++) {
-        const cell = document.createElement('div');
-        cell.className = 'grid-cell';
-        // Assegna l'etichetta dall'array
-        cell.setAttribute('data-label', etichettePantaloni[i]); 
-        cell.onclick = () => scattaPerGriglia(cell);
-        container.appendChild(cell);
-    }
-}
-
-    // Esegui subito la creazione
     creaGriglia();
 
     function modalitaCatalogo() {
@@ -762,13 +473,11 @@ function creaGriglia() {
         const grid = document.getElementById('grid-container');
         
         if (modeCatalogo) {
-            // Stato Attivo: Blu e mostra griglia
             btn.style.background = '#007AFF';
             btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
             grid.style.display = 'grid';
             finalImg.style.display = 'none';
         } else {
-            // Stato Inattivo: Bianco e nasconde griglia
             btn.style.background = 'white';
             btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
             btn.querySelector('line').setAttribute('stroke', '#007AFF');
@@ -777,103 +486,110 @@ function creaGriglia() {
         }
     }
 
-    function scattaPerGriglia(cell) {
-        targetCell = cell;
-        attivaCam();
+    function aggiornaNomiGriglia() {
+        const cells = document.querySelectorAll('.grid-cell');
+        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : (tipoCorrente === "Pantalone" ? etichettePantaloni : Array(12).fill("Oggetto"));
+        cells.forEach((cell, i) => {
+            if (!cell.classList.contains('filled')) cell.setAttribute('data-label', labels[i] || "Extra");
+        });
     }
 
-// Aggiungi questa funzione per animare le foto verso la galleria
-function raccogliFoto() {
-    const cells = document.querySelectorAll('.grid-cell.filled');
-    const galleryBtn = document.getElementById('btn-gallery');
-    const rectDest = galleryBtn.getBoundingClientRect();
-
-    if (cells.length === 0) return;
-
-    cells.forEach((cell, index) => {
-        const img = cell.querySelector('img');
-        const rectStart = img.getBoundingClientRect();
-
-        // Crea un clone visivo per l'animazione
-        const clone = document.createElement('img');
-        clone.src = img.src;
-        clone.className = 'flying-photo';
-        clone.style.width = rectStart.width + 'px';
-        clone.style.height = rectStart.height + 'px';
-        clone.style.top = rectStart.top + 'px';
-        clone.style.left = rectStart.left + 'px';
+    // --- INTELLIGENZA ARTIFICIALE (RITAGLIO & RECOG) ---
+    function toggleRecognition() {
+        const label = document.getElementById('ai-label');
+        if (tipoCorrente === "Nessun vestito") tipoCorrente = "Pantalone";
+        else if (tipoCorrente === "Pantalone") tipoCorrente = "Maglia";
+        else tipoCorrente = "Nessun vestito";
         
-        document.body.appendChild(clone);
+        label.innerText = "RILEVATO: " + tipoCorrente.toUpperCase();
+        riconoscimentoAvvenuto = (tipoCorrente !== "Nessun vestito");
+    }
 
-        // Effetto "Sollevamento" e poi spostamento
-        setTimeout(() => {
-            clone.style.transform = "scale(1.2) rotate(5deg)";
-            
+    function attivaRitaglio() {
+        if (finalImg.style.display === 'none' || !finalImg.src) return;
+        cropActive = !cropActive;
+        const btn = document.getElementById('btn-crop');
+        
+        if (cropActive) {
+            btn.classList.add('active');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = viewport.getBoundingClientRect();
+            cropCanvas.width = rect.width * dpr;
+            cropCanvas.height = rect.height * dpr;
+            cropCanvas.style.width = rect.width + "px";
+            cropCanvas.style.height = rect.height + "px";
+            ctxCrop.scale(dpr, dpr);
+            cropCanvas.style.display = 'block';
+            initDrawing();
+        } else {
+            btn.classList.remove('active');
+            cropCanvas.style.display = 'none';
+            ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+        }
+    }
+
+    function initDrawing() {
+        ctxCrop.strokeStyle = "white";
+        ctxCrop.lineWidth = 3;
+        ctxCrop.setLineDash([10, 10]);
+        
+        const getPos = (e) => {
+            const rect = cropCanvas.getBoundingClientRect();
+            return {
+                x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
+                y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+            };
+        };
+
+        cropCanvas.onmousedown = cropCanvas.ontouchstart = (e) => {
+            isDrawing = true;
+            drawPoints = [];
+            ctxCrop.beginPath();
+            const pos = getPos(e);
+            ctxCrop.moveTo(pos.x, pos.y);
+            drawPoints.push(pos);
+        };
+
+        cropCanvas.onmousemove = cropCanvas.ontouchmove = (e) => {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            ctxCrop.lineTo(pos.x, pos.y);
+            ctxCrop.stroke();
+            drawPoints.push(pos);
+        };
+
+        window.onmouseup = window.ontouchend = () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            finalImg.classList.add('ai-active');
             setTimeout(() => {
-                clone.style.width = "40px";
-                clone.style.height = "40px";
-                clone.style.top = (rectDest.top + 10) + 'px';
-                clone.style.left = (rectDest.left + 10) + 'px';
-                clone.style.opacity = "0.5";
-                clone.style.transform = "scale(0.2) rotate(20deg)";
-            }, 100 + (index * 50)); // Delay progressivo per l'effetto "sciame"
-        }, 10);
-
-        // Rimuovi il clone e pulisci la cella alla fine
-        setTimeout(() => {
-            clone.remove();
-            // Opzionale: pulisce la griglia dopo il salvataggio
-            // cell.innerHTML = '';
-            // cell.classList.remove('filled');
-            
-            // Aggiorna l'anteprima galleria con l'ultima foto raccolta
-            if (index === cells.length - 1) {
-                aggiornaAnteprimaGalleria(img.src);
-                alert("Foto salvate nella sessione!");
-            }
-        }, 900 + (cells.length * 50));
-    });
-}
-
-function modalitaCatalogo() {
-    modeCatalogo = !modeCatalogo;
-    const btn = document.getElementById('btn-catalog');
-    const grid = document.getElementById('grid-container');
-    
-    if (modeCatalogo) {
-        btn.style.background = '#007AFF';
-        btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
-        grid.style.display = 'grid';
-        finalImg.style.display = 'none';
-        
-        // Se si tocca lo sfondo della griglia, raccoglie le foto
-        grid.onclick = (e) => { if (e.target === grid) raccogliFoto(); };
-    } else {
-        btn.style.background = 'white';
-        btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
-        btn.querySelector('line').setAttribute('stroke', '#007AFF');
-        grid.style.display = 'none';
-        // Se c'è una foto scattata senza riconoscimento, la mostra
-        if(finalImg.src && !riconoscimentoAvvenuto) finalImg.style.display = 'block';
+                eseguiTaglioManuale();
+                finalImg.classList.remove('ai-active');
+                attivaRitaglio();
+            }, 600);
+        };
     }
-}
 
-function toggleRecognition() {
-    const label = document.getElementById('ai-label');
-    
-    if (tipoCorrente === "Nessun vestito") tipoCorrente = "Pantalone";
-    else if (tipoCorrente === "Pantalone") tipoCorrente = "Maglia";
-    else tipoCorrente = "Nessun vestito";
-    
-    label.innerText = "RILEVATO: " + tipoCorrente.toUpperCase();
-    riconoscimentoAvvenuto = (tipoCorrente !== "Nessun vestito");
-    
-    // Feedback visivo rapido
-    label.style.opacity = "0.5";
-    setTimeout(() => label.style.opacity = "1", 100);
-}
+    function eseguiTaglioManuale() {
+        if (drawPoints.length < 3) return;
+        const tempCanvas = document.createElement('canvas');
+        const tCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = finalImg.naturalWidth;
+        tempCanvas.height = finalImg.naturalHeight;
 
+        const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
+        const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
 
+        tCtx.beginPath();
+        tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
+        drawPoints.forEach(p => tCtx.lineTo(p.x * scaleX, p.y * scaleY));
+        tCtx.closePath();
+        tCtx.clip(); 
+        tCtx.drawImage(finalImg, 0, 0);
+
+        finalImg.src = tempCanvas.toDataURL('image/png');
+    }
 </script>
 
 </body>
