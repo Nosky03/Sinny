@@ -246,14 +246,14 @@
 
 .scan-dot {
     position: absolute;
-    width: 8px; /* Leggermente più piccoli per sembrare più tecnici */
-    height: 8px;
+    width: 6px;
+    height: 6px;
     background: #FFD60A;
     border-radius: 50%;
     z-index: 3500;
-    box-shadow: 0 0 12px #FFD60A;
+    box-shadow: 0 0 15px #FFD60A;
     pointer-events: none;
-    transition: background 0.3s ease, box-shadow 0.3s ease;
+    transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */
 }
 
     </style>
@@ -323,6 +323,7 @@
 </div>
 
 
+<canvas id="ai-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3040; pointer-events: none;"></canvas>
 
 
     <div id="cam-overlay" class="full-screen-cam">
@@ -620,82 +621,152 @@
 function mostraPuntiScansione() {
     const aiLabel = document.getElementById('ai-label');
     const aiHeader = document.getElementById('ai-header');
+    const aiCanvas = document.getElementById('ai-canvas');
+    const ctx = aiCanvas.getContext('2d');
     
-    aiLabel.innerText = "MAPPATURA TESSUTO...";
+    aiCanvas.width = window.innerWidth;
+    aiCanvas.height = window.innerHeight;
+    aiLabel.innerText = "CALIBRAZIONE SENSORI...";
 
-    // Definiamo i punti chiave di una maglia (coordinate percentuali relative al centro)
-    // x: 50 è il centro, y: 50 è il centro.
-    const puntiMaglia = [
-        {x: 50, y: 35}, // Collo
-        {x: 40, y: 38}, {x: 60, y: 38}, // Spalle
-        {x: 25, y: 45}, {x: 75, y: 45}, // Metà maniche
-        {x: 15, y: 60}, {x: 85, y: 60}, // Polsini
-        {x: 40, y: 55}, {x: 60, y: 55}, // Torace
-        {x: 40, y: 75}, {x: 60, y: 75}, // Fianchi
-        {x: 50, y: 80}  // Orlo inferiore
-    ];
+    const dots = [];
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const radius = 90;
 
-    puntiMaglia.forEach((punto, i) => {
+    // 1. Inizializzazione con rotazione ad alta frequenza
+    for (let i = 0; i < 14; i++) { // Aumentati a 14 per più dettaglio
         const dot = document.createElement('div');
         dot.className = 'scan-dot';
-        
-        // Posizionamento iniziale con un po' di casualità per simulare il "rilevamento"
-        const offsetX = (Math.random() - 0.5) * 5; 
-        const offsetY = (Math.random() - 0.5) * 5;
-        
-        dot.style.left = (punto.x + offsetX) + '%';
-        dot.style.top = (punto.y + offsetY) + '%';
         overlay.appendChild(dot);
+        dots.push({ el: dot, angle: (i / 14) * Math.PI * 2, locked: false });
+    }
 
-        // Animazione Apple Intelligence: i punti "pulsano" e si assestano
-        dot.animate([
-            { transform: 'scale(0) opacity(0)', filter: 'blur(5px)' },
-            { transform: 'scale(1.5) opacity(1)', filter: 'blur(0px)', offset: 0.5 },
-            { transform: 'scale(1) opacity(1)' }
-        ], { 
-            duration: 500, 
-            delay: i * 80, 
-            fill: 'forwards',
-            easing: 'ease-out'
+    let startTime = Date.now();
+    function orbit() {
+        const elapsed = Date.now() - startTime;
+        if (elapsed < 1000) {
+            dots.forEach(d => {
+                const curAngle = d.angle + (elapsed / 150);
+                d.el.style.left = `${centerX + Math.cos(curAngle) * radius}px`;
+                d.el.style.top = `${centerY + Math.sin(curAngle) * radius}px`;
+            });
+            requestAnimationFrame(orbit);
+        } else {
+            rilevamentoDinamico();
+        }
+    }
+    orbit();
+
+    // 2. LOGICA TECNOLOGICA: Generazione coordinate in base ai confini
+    function rilevamentoDinamico() {
+        aiLabel.innerText = "ANALISI SCANNER V-RAY...";
+        
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        // Simuliamo il rilevamento dei bordi reali (bounding box dinamica)
+        // Se l'utente inquadra, l'algoritmo "trova" questi punti nel volume
+        const bounds = {
+            top: h * 0.25 + (Math.random() * 20),
+            bottom: h * 0.80 - (Math.random() * 20),
+            left: w * 0.20 + (Math.random() * 30),
+            right: w * 0.80 - (Math.random() * 30),
+            midX: w / 2
+        };
+
+        // Creazione "Skeleton" dinamico basato sul tipo (Maglia)
+        const dynamicShape = [
+            {x: bounds.midX, y: bounds.top},             // Collo Central
+            {x: bounds.left + 40, y: bounds.top + 15},   // Spalla SX
+            {x: bounds.left - 20, y: bounds.top + 100},  // Manica SX (braccio)
+            {x: bounds.left - 10, y: bounds.bottom - 150},// Polso SX
+            {x: bounds.left + 50, y: bounds.bottom - 160},// Ascella SX
+            {x: bounds.left + 45, y: bounds.bottom},     // Fondo SX
+            {x: bounds.right - 45, y: bounds.bottom},    // Fondo DX
+            {x: bounds.right - 50, y: bounds.bottom - 160},// Ascella DX
+            {x: bounds.right + 10, y: bounds.bottom - 150},// Polso DX
+            {x: bounds.right + 20, y: bounds.top + 100}, // Manica DX (braccio)
+            {x: bounds.right - 40, y: bounds.top + 15},  // Spalla DX
+            {x: bounds.midX, y: bounds.top}              // Chiusura
+        ];
+
+        // Spostamento dei punti con "aggancio" magnetico
+        dots.forEach((d, i) => {
+            if (dynamicShape[i]) {
+                d.el.style.transform = "scale(1.5)";
+                d.el.style.background = "#007AFF"; // Blu durante il lock
+                d.el.style.left = `${dynamicShape[i].x}px`;
+                d.el.style.top = `${dynamicShape[i].y}px`;
+            } else {
+                d.el.style.opacity = "0"; // Nascondi punti extra
+            }
         });
 
-        // Effetto Jitter continuo (i punti si muovono leggermente come se leggessero il tessuto)
-        dot.animate([
-            { transform: 'translate(0, 0)' },
-            { transform: `translate(${(Math.random()-0.5)*10}px, ${(Math.random()-0.5)*10}px)` },
-            { transform: 'translate(0, 0)' }
-        ], {
-            duration: 2000,
-            iterations: Infinity,
-            delay: i * 100
-        });
-    });
+        setTimeout(() => renderTechLines(dynamicShape), 500);
+    }
 
-    // Simulazione logica di distanza: se i punti maniche sono troppo vicini al busto -> "Top senza maniche"
-    // Qui simuliamo il successo dopo l'analisi
-    setTimeout(() => {
-        document.querySelectorAll('.scan-dot').forEach(d => {
-            d.style.background = "#34c759"; // Diventano verdi al successo
-            d.style.boxShadow = "0 0 15px #34c759";
-        });
+    // 3. Rendering Linee con effetto "Neural Link"
+    function renderTechLines(points) {
+        let step = 0;
+        aiLabel.innerText = "STRUTTURA IDENTIFICATA";
+
+        function drawFrame() {
+            ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+            
+            // Effetto bagliore
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "rgba(0, 122, 255, 0.5)";
+            
+            ctx.beginPath();
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = "#007AFF";
+            ctx.setLineDash([2, 4]); // Linea tecnica sottile
+
+            ctx.moveTo(points[0].x, points[0].y);
+            
+            for (let i = 1; i < step; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            
+            ctx.stroke();
+
+            // Disegna piccoli vettori di dati accanto ai punti
+            if (step < points.length) {
+                const p = points[step];
+                ctx.fillStyle = "#007AFF";
+                ctx.font = "8px monospace";
+                ctx.fillText(`LOK_POINT_${step}: ${Math.floor(p.x)}px`, p.x + 10, p.y - 10);
+                
+                step += 0.5;
+                requestAnimationFrame(drawFrame);
+            } else {
+                ctx.setLineDash([]);
+                ctx.stroke();
+                // Chiudi la forma con un riempimento leggero
+                ctx.fillStyle = "rgba(0, 122, 255, 0.05)";
+                ctx.fill();
+                concludiAnalisi();
+            }
+        }
+        drawFrame();
+    }
+
+    function concludiAnalisi() {
+        // Feedback Apple Intelligence finale
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = "MATCH 99.8% - MAGLIA";
+        aiHeader.style.color = "#34c759";
+        aiLabel.innerText = "DATA ACQUIRED";
+        riconoscimentoAvvenuto = true;
 
         setTimeout(() => {
-            document.querySelectorAll('.scan-dot').forEach(d => d.remove());
-            
-            aiHeader.style.display = 'block';
-            aiHeader.innerText = "MAGLIA RILEVATA";
-            aiHeader.style.color = "#FFD60A";
-            
-            aiLabel.innerText = "CONFERMATO: MAGLIA";
-            riconoscimentoAvvenuto = true;
-
-            aiHeader.animate([
-                { transform: 'translateX(-50%) scale(0.8)', opacity: 0 },
-                { transform: 'translateX(-50%) scale(1.1)', opacity: 1 },
-                { transform: 'translateX(-50%) scale(1)', opacity: 1 }
-            ], { duration: 400, easing: 'back-out' });
-        }, 500);
-    }, 2200);
+            ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
+            document.querySelectorAll('.scan-dot').forEach(d => {
+                d.style.transform = "scale(0)";
+                setTimeout(() => d.remove(), 300);
+            });
+        }, 1200);
+    }
 }
 
 </script>
