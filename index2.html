@@ -251,7 +251,8 @@
     background: #FFD60A;
     border-radius: 50%;
     z-index: 3500;
-    box-shadow: 0 0 15px #FFD60A;
+    box-shadow: 0 0 10px #FFD60A, 0 0 20px rgba(255, 214, 10, 0.5);
+    border: 1px solid white;
     pointer-events: none;
     transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */
 }
@@ -297,7 +298,9 @@
     font-weight: bold; display: none; z-index: 4100;
 }
 
-
+#ai-canvas {
+    filter: drop-shadow(0 0 5px #FFD60A);
+}
     </style>
 </head>
 <body>
@@ -492,46 +495,66 @@
         renderLines();
     }
 
-    function addARPoint() {
-        // Posizione centrale del mirino
-        const p = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-        arPoints.push(p);
+   function addARPoint() {
+    // Coordinate esatte del centro mirino
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    
+    const p = { x: centerX, y: centerY };
+    arPoints.push(p);
 
-        // Crea il punto visivo fisso
-        const dot = document.createElement('div');
-        dot.className = 'scan-dot';
-        dot.style.background = '#34c759'; // Verde
-        dot.style.left = p.x + 'px';
-        dot.style.top = p.y + 'px';
-        overlay.appendChild(dot);
+    // Crea il punto visivo
+    const dot = document.createElement('div');
+    dot.className = 'scan-dot';
+    dot.style.background = '#34c759'; // Verde quando confermato
+    dot.style.left = (p.x - 3) + 'px'; // Centra il puntino da 6px
+    dot.style.top = (p.y - 3) + 'px';
+    overlay.appendChild(dot);
 
-        aiLabel.innerText = `MAPPA I PUNTI (${arPoints.length})`;
-        if (arPoints.length >= 4) btnFinish.style.display = 'block';
-    }
+    // Feedback aptico (se supportato)
+    if (navigator.vibrate) navigator.vibrate(10);
 
-    function renderLines() {
-        if (!isMapping) return;
-        const ctx = arCanvas.getContext('2d');
-        ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+    aiLabel.innerText = `PUNTI RILEVATI: ${arPoints.length}`;
+    if (arPoints.length >= 4) btnFinish.style.display = 'block';
+}
 
-        if (arPoints.length > 0) {
+
+function renderLines() {
+    if (!isMapping) return;
+    const ctx = arCanvas.getContext('2d');
+    ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+
+    if (arPoints.length > 0) {
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]); // Linea tratteggiata stile scansione
+        ctx.strokeStyle = "#FFD60A";
+        ctx.lineWidth = 2;
+
+        // 1. Disegna le linee tra i punti già fissati
+        ctx.moveTo(arPoints[0].x, arPoints[0].y);
+        for(let i = 1; i < arPoints.length; i++) {
+            ctx.lineTo(arPoints[i].x, arPoints[i].y);
+        }
+        
+        // 2. LA LINEA ELASTICA: Collega l'ultimo punto fisso al mirino centrale
+        // Questo crea l'effetto "filo" mentre muovi il telefono
+        ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
+        
+        ctx.stroke();
+
+        // 3. Se hai almeno 3 punti, chiudi la forma virtualmente verso il primo punto
+        // per mostrare l'area che stai scansionando
+        if (arPoints.length >= 3) {
             ctx.beginPath();
-            ctx.setLineDash([5, 5]);
-            ctx.strokeStyle = "#FFD60A";
-            ctx.lineWidth = 2;
-
-            // Disegna linee tra i punti fissati
-            ctx.moveTo(arPoints[0].x, arPoints[0].y);
-            for(let i = 1; i < arPoints.length; i++) {
-                ctx.lineTo(arPoints[i].x, arPoints[i].y);
-            }
-            
-            // LINEA ELASTICA: dall'ultimo punto al mirino centrale
-            ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
+            ctx.setLineDash([2, 4]);
+            ctx.strokeStyle = "rgba(255, 214, 10, 0.4)";
+            ctx.moveTo(window.innerWidth / 2, window.innerHeight / 2);
+            ctx.lineTo(arPoints[0].x, arPoints[0].y);
             ctx.stroke();
         }
-        requestAnimationFrame(renderLines);
     }
+    requestAnimationFrame(renderLines);
+}
 
     function finishARMapping() {
         isMapping = false;
