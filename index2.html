@@ -256,16 +256,20 @@
     pointer-events: none;
 }
 
-/* Punti che metterai tu sulla foto */
 .manual-dot {
     position: absolute;
-    width: 12px;
-    height: 12px;
+    width: 20px; /* Più grande per toccarlo meglio */
+    height: 20px;
     background: #FFD60A;
     border: 2px solid white;
     border-radius: 50%;
     z-index: 4000;
     transform: translate(-50%, -50%);
+    touch-action: none; /* Impedisce lo scroll mentre trascini */
+}
+.manual-dot.dragging {
+    background: #34c759;
+    transform: translate(-50%, -50%) scale(1.5);
 }
 
 /* Linee che collegano i punti */
@@ -362,7 +366,7 @@
 
 
 <div id="cam-overlay" class="full-screen-cam">
-    <div id="ai-header">MODALITÀ COSA È</div>
+    <div id="ai-header" style="top: 60px; color: white; display: none;">MODALITÀ: cosa è?</div>
     
     <div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
     
@@ -379,11 +383,13 @@
 
     <div class="controls" id="ui">
         <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">Fine</button>
-        <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
+        <button id="btn-confirm-points" class="btn-ui" style="display:none; background: #34c759;" onclick="fermaAggiuntaPunti()">OK</button>
+        <button class="btn-ui ok" id="btn-photo-ok" onclick="accettaFoto()">✓</button>
         <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">⤺</button>
         <button class="btn-ui retry" onclick="reset()">↺</button>
     </div>
 </div>
+
 
 
 <div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3500; display:none;">
@@ -578,71 +584,75 @@ function toggleRecognition() {
     const aiLabel = document.getElementById('ai-label');
     const aiHeader = document.getElementById('ai-header');
 
-    // Cambia stato al tocco del tasto giallo sotto lo shutter
     if (tipoCorrente === "Nessun vestito") {
-        tipoCorrente = "Maglia";
+        tipoCorrente = "Attivo"; 
         aiHeader.style.display = 'block';
-        aiHeader.innerText = "MODALITÀ COSA È";
-        aiHeader.style.color = "white";
-        aiLabel.innerText = "RILEVATO: MAGLIA";
-        riconoscimentoAvvenuto = true;
-    } else if (tipoCorrente === "Maglia") {
-        tipoCorrente = "Pantalone";
-        aiLabel.innerText = "RILEVATO: PANTALONE";
+        aiHeader.innerText = "MODALITÀ: cosa è?";
+        aiLabel.style.background = "#34c759"; // Diventa verde se attivo
     } else {
         tipoCorrente = "Nessun vestito";
         aiHeader.style.display = 'none';
-        aiLabel.innerText = "COSA È?";
-        riconoscimentoAvvenuto = false;
+        aiLabel.style.background = "#FFD60A";
     }
 }
 
+let editingLocked = false;
+
 function attivaTouchPunti() {
     const layer = document.getElementById('drawing-layer');
-    // Rimuoviamo eventuali listener vecchi per non duplicare i punti
-    layer.onclick = null; 
-    
     layer.onclick = function(e) {
-        if (!isManualMode) return;
-        const rect = layer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        if (!isManualMode || editingLocked) return;
+        if (e.target.classList.contains('manual-dot')) return; // Non aggiungere punti se clicchi un punto esistente
 
-        manualPoints.push({x, y});
+        const rect = layer.getBoundingClientRect();
+        manualPoints.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        
+        // Mostra tasto OK per fermare l'aggiunta e iniziare a spostarli
+        document.getElementById('btn-confirm-points').style.display = 'flex';
         disegnaPunti();
+    };
+}
+
+function fermaAggiuntaPunti() {
+    editingLocked = true; // Non puoi più aggiungere, solo spostare
+    document.getElementById('btn-confirm-points').style.display = 'none';
+    document.getElementById('btn-finish').style.display = 'flex'; // Appare analizza
+    document.getElementById('btn-undo').innerText = "✎"; // Cambia icona in "torna a disegnare"
+    document.getElementById('btn-undo').onclick = () => { 
+        editingLocked = false; 
+        document.getElementById('btn-undo').innerText = "⤺";
+        document.getElementById('btn-undo').onclick = rimuoviUltimoPunto;
+        document.getElementById('btn-finish').style.display = 'none';
+        document.getElementById('btn-confirm-points').style.display = 'flex';
     };
 }
 
 function disegnaPunti() {
     const layer = document.getElementById('drawing-layer');
     const svg = document.getElementById('clothing-shape');
-    
-    // Pulisce i puntini grafici vecchi
     layer.querySelectorAll('.manual-dot').forEach(d => d.remove());
-    
-    // Gestione visibilità tasti (Fine appare solo dopo 3 punti per formare una forma)
-    document.getElementById('btn-undo').style.display = manualPoints.length > 0 ? 'flex' : 'none';
-    document.getElementById('btn-finish').style.display = manualPoints.length >= 3 ? 'flex' : 'none';
 
     let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
+    svg.innerHTML = manualPoints.length > 2 
+        ? `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.3); stroke:#FFD60A; stroke-width:3" />`
+        : `<polyline points="${polyPoints}" style="fill:none; stroke:#FFD60A; stroke-width:3" />`;
 
-    // Disegna la forma e le linee
-    if (manualPoints.length > 2) {
-        // Se ho più di 2 punti, creo un poligono chiuso con riempimento trasparente
-        svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.3); stroke:#FFD60A; stroke-width:3" />`;
-    } else if (manualPoints.length > 1) {
-        // Se ho solo 2 punti, disegno solo la linea
-        svg.innerHTML = `<polyline points="${polyPoints}" style="fill:none; stroke:#FFD60A; stroke-width:3" />`;
-    } else {
-        svg.innerHTML = '';
-    }
-
-    // Ricrea i puntini fisici gialli sopra la linea
-    manualPoints.forEach((p) => {
+    manualPoints.forEach((p, index) => {
         const dot = document.createElement('div');
         dot.className = 'manual-dot';
         dot.style.left = p.x + 'px';
         dot.style.top = p.y + 'px';
+        
+        // Logica per trascinare il punto
+        dot.ontouchmove = (e) => {
+            if (!editingLocked) return;
+            const touch = e.touches[0];
+            const rect = layer.getBoundingClientRect();
+            p.x = touch.clientX - rect.left;
+            p.y = touch.clientY - rect.top;
+            disegnaPunti();
+        };
+
         layer.appendChild(dot);
     });
 }
@@ -653,36 +663,25 @@ function rimuoviUltimoPunto() {
 }
 
 function concludiPunti() {
-    const svg = document.getElementById('clothing-shape');
+    const n = manualPoints.length;
     const aiHeader = document.getElementById('ai-header');
     
-    // Riempimento più solido alla conferma finale
-    let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
-    svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.6); stroke:#FFD60A; stroke-width:4" />`;
-
-    const conteggio = manualPoints.length;
-    let risultato = "";
-
-    // Logica: 12 punti = Maglia, 8 punti = Pantaloni (con tolleranza)
-    if (conteggio >= 10 && conteggio <= 14) {
-        risultato = "MAGLIA RILEVATA";
+    // Spariscono i puntini, resta solo la forma colorata
+    document.querySelectorAll('.manual-dot').forEach(d => d.remove());
+    
+    if (n >= 10 && n <= 14) {
+        aiHeader.innerText = "RILEVATA: MAGLIA";
         tipoCorrente = "Maglia";
-    } else if (conteggio >= 6 && conteggio <= 9) {
-        risultato = "PANTALONI RILEVATI";
+    } else if (n >= 6 && n <= 9) {
+        aiHeader.innerText = "RILEVATO: PANTALONE";
         tipoCorrente = "Pantalone";
     } else {
-        risultato = `RILEVATI ${conteggio} PUNTI`;
+        aiHeader.innerText = "OGGETTO RILEVATO";
     }
-
-    aiHeader.innerText = risultato;
-    aiHeader.style.color = "#FFD60A";
     
-    // Nasconde i tasti di editing punti
+    riconoscimentoAvvenuto = true;
     document.getElementById('btn-finish').style.display = 'none';
-    document.getElementById('btn-undo').style.display = 'none';
-    isManualMode = false; // Blocca ulteriori tocchi sulla foto
 }
-
 
 </script>
 
