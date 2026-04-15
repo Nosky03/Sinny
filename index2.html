@@ -46,10 +46,16 @@
         
         video, #preview-canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
-        .controls { 
-            position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
-            display: none; flex-direction: column; gap: 25px; z-index: 3100; 
-        }
+       .controls { 
+    position: absolute; 
+    right: 20px; 
+    top: 50%; 
+    transform: translateY(-50%);
+    display: none; /* Nasconde inizialmente i tasti */
+    flex-direction: column; 
+    gap: 15px; /* Ridotto gap per stare sotto l'etichetta */
+    z-index: 3100; 
+}
 
         .btn-ui { 
             width: 65px; height: 65px; border-radius: 50%; display: flex; 
@@ -213,21 +219,19 @@
 }
 
 /* Etichetta gialla sotto lo shutter */
-#ai-label {
+
     position: absolute;
     right: 20px;
-    top: calc(50% + 60px); /* Sotto il cerchio shutter */
-    transform: translateY(-50%);
-    background: #FFD60A;
+    top: calc(50% + 80px); /* Abbassata per lasciare spazio ai tasti sopra */
+    background: #FFD60A !important; /* Forza il giallo sempre */
     color: black;
-    padding: 5px 12px;
+    padding: 8px 12px;
     border-radius: 10px;
     font-weight: bold;
     font-size: 12px;
     z-index: 3200;
     display: none;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 /* Titolo riconoscimento in alto */
@@ -291,10 +295,9 @@
     pointer-events: none;
 }
 
-/* Tasti extra nella fotocamera */
-#btn-undo { background: #5856d6; order: 3; display: none; }
-#btn-finish { background: #007AFF; order: 0; display: none; }
-
+#btn-confirm-points, #btn-finish, #btn-undo {
+    order: 10; /* Li sposta in fondo alla lista flex */
+}
 
     </style>
 </head>
@@ -375,20 +378,23 @@
     <video id="v" playsinline autoplay muted></video>
     <canvas id="preview-canvas" style="display:none;"></canvas>
     
-    <div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3500; display:none; pointer-events: auto;">
+    <div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3050; display:none; pointer-events: auto;">
         <svg id="clothing-shape" style="width:100%; height:100%;"></svg>
     </div>
 
     <div id="shutter" onclick="scatta()"></div>
 
     <div class="controls" id="ui">
-        <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">Fine</button>
-        <button id="btn-confirm-points" class="btn-ui" style="display:none; background: #34c759;" onclick="fermaAggiuntaPunti()">OK</button>
         <button class="btn-ui ok" id="btn-photo-ok" onclick="accettaFoto()">✓</button>
-        <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">⤺</button>
         <button class="btn-ui retry" onclick="reset()">↺</button>
+        
+        <button id="btn-confirm-points" class="btn-ui" style="display:none; background: #34c759;" onclick="fermaAggiuntaPunti()">OK</button>
+        <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">Fine</button>
+        <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">⤺</button>
     </div>
 </div>
+
+
 
 
 
@@ -580,6 +586,11 @@
 
 // --- INTELLIGENZA ARTIFICIALE (SISTEMA MANUALE PUNTI) ---
 
+// --- LOGICA MODALITÀ "COSA È" (MANUAL POINTS) ---
+
+let editingLocked = false;
+
+// 1. Attivazione Modalità (Sempre Gialla)
 function toggleRecognition() {
     const aiLabel = document.getElementById('ai-label');
     const aiHeader = document.getElementById('ai-header');
@@ -588,7 +599,8 @@ function toggleRecognition() {
         tipoCorrente = "Attivo"; 
         aiHeader.style.display = 'block';
         aiHeader.innerText = "MODALITÀ: cosa è?";
-        aiLabel.style.background = "#34c759"; // Diventa verde se attivo
+        aiLabel.style.background = "#FFD60A";
+        aiLabel.style.color = "black";
     } else {
         tipoCorrente = "Nessun vestito";
         aiHeader.style.display = 'none';
@@ -596,54 +608,50 @@ function toggleRecognition() {
     }
 }
 
-let editingLocked = false;
-
+// 2. Gestione Tocchi sul Layer (Aggiunta Punti)
 function attivaTouchPunti() {
     const layer = document.getElementById('drawing-layer');
+    
     layer.onclick = function(e) {
-        if (!isManualMode || editingLocked) return;
-        if (e.target.classList.contains('manual-dot')) return; // Non aggiungere punti se clicchi un punto esistente
+        // Blocca l'aggiunta se clicchi sui tasti UI, sui punti esistenti o se la modifica è bloccata (dopo OK)
+        if (e.target.closest('.controls') || e.target.classList.contains('manual-dot') || !isManualMode || editingLocked) {
+            return;
+        }
 
         const rect = layer.getBoundingClientRect();
         manualPoints.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
         
-        // Mostra tasto OK per fermare l'aggiunta e iniziare a spostarli
+        // Mostra tasti di gestione
         document.getElementById('btn-confirm-points').style.display = 'flex';
+        document.getElementById('btn-undo').style.display = 'flex';
         disegnaPunti();
     };
 }
 
-function fermaAggiuntaPunti() {
-    editingLocked = true; // Non puoi più aggiungere, solo spostare
-    document.getElementById('btn-confirm-points').style.display = 'none';
-    document.getElementById('btn-finish').style.display = 'flex'; // Appare analizza
-    document.getElementById('btn-undo').innerText = "✎"; // Cambia icona in "torna a disegnare"
-    document.getElementById('btn-undo').onclick = () => { 
-        editingLocked = false; 
-        document.getElementById('btn-undo').innerText = "⤺";
-        document.getElementById('btn-undo').onclick = rimuoviUltimoPunto;
-        document.getElementById('btn-finish').style.display = 'none';
-        document.getElementById('btn-confirm-points').style.display = 'flex';
-    };
-}
-
+// 3. Funzione Disegno (SVG + Pallini)
 function disegnaPunti() {
     const layer = document.getElementById('drawing-layer');
     const svg = document.getElementById('clothing-shape');
+    
+    // Pulisce i vecchi pallini visivi
     layer.querySelectorAll('.manual-dot').forEach(d => d.remove());
 
     let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
-    svg.innerHTML = manualPoints.length > 2 
-        ? `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.3); stroke:#FFD60A; stroke-width:3" />`
-        : `<polyline points="${polyPoints}" style="fill:none; stroke:#FFD60A; stroke-width:3" />`;
+    
+    if (manualPoints.length > 2) {
+        svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.3); stroke:#FFD60A; stroke-width:3" />`;
+    } else {
+        svg.innerHTML = `<polyline points="${polyPoints}" style="fill:none; stroke:#FFD60A; stroke-width:3" />`;
+    }
 
+    // Ricrea i pallini interattivi
     manualPoints.forEach((p, index) => {
         const dot = document.createElement('div');
         dot.className = 'manual-dot';
         dot.style.left = p.x + 'px';
         dot.style.top = p.y + 'px';
         
-        // Logica per trascinare il punto
+        // Permette il trascinamento solo dopo aver premuto OK (editingLocked = true)
         dot.ontouchmove = (e) => {
             if (!editingLocked) return;
             const touch = e.touches[0];
@@ -657,16 +665,44 @@ function disegnaPunti() {
     });
 }
 
-function rimuoviUltimoPunto() {
+// 4. Conferma Punti (Tasto OK) -> Passa allo spostamento
+function fermaAggiuntaPunti(e) {
+    if(e) e.stopPropagation();
+    editingLocked = true;
+    
+    document.getElementById('btn-confirm-points').style.display = 'none';
+    document.getElementById('btn-finish').style.display = 'flex';
+    
+    const undoBtn = document.getElementById('btn-undo');
+    undoBtn.innerText = "✎"; // Icona modifica per tornare indietro
+    undoBtn.onclick = (event) => {
+        event.stopPropagation();
+        editingLocked = false;
+        undoBtn.innerText = "⤺";
+        undoBtn.onclick = rimuoviUltimoPunto;
+        document.getElementById('btn-finish').style.display = 'none';
+        document.getElementById('btn-confirm-points').style.display = 'flex';
+    };
+}
+
+// 5. Rimuovi punto (Tasto Indietro)
+function rimuoviUltimoPunto(e) {
+    if(e) e.stopPropagation();
     manualPoints.pop();
+    if(manualPoints.length === 0) {
+        document.getElementById('btn-confirm-points').style.display = 'none';
+        document.getElementById('btn-undo').style.display = 'none';
+    }
     disegnaPunti();
 }
 
-function concludiPunti() {
+// 6. Analisi Finale (Tasto Fine)
+function concludiPunti(e) {
+    if(e) e.stopPropagation();
     const n = manualPoints.length;
     const aiHeader = document.getElementById('ai-header');
     
-    // Spariscono i puntini, resta solo la forma colorata
+    // Pulisce l'interfaccia dai pallini di editing
     document.querySelectorAll('.manual-dot').forEach(d => d.remove());
     
     if (n >= 10 && n <= 14) {
@@ -676,11 +712,13 @@ function concludiPunti() {
         aiHeader.innerText = "RILEVATO: PANTALONE";
         tipoCorrente = "Pantalone";
     } else {
-        aiHeader.innerText = "OGGETTO RILEVATO";
+        aiHeader.innerText = "OGGETTO RILEVATO (" + n + " PUNTI)";
     }
     
     riconoscimentoAvvenuto = true;
     document.getElementById('btn-finish').style.display = 'none';
+    document.getElementById('btn-undo').style.display = 'none';
+    isManualMode = false; // Disabilita ulteriori interazioni
 }
 
 </script>
