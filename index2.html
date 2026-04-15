@@ -361,19 +361,30 @@
 
 
 
-    <div id="cam-overlay" class="full-screen-cam">
-      <div id="ai-header">RICONOSCIMENTO...</div>
-<div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
-        <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
-        <video id="v" playsinline autoplay muted></video>
-        <canvas id="preview-canvas" style="display:none;"></canvas>
-        <div id="shutter" onclick="scatta()"></div>
-       <div class="controls" id="ui">
-    <button id="btn-finish" class="btn-ui" onclick="concludiPunti()">Fine</button>
-    <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
-    <button id="btn-undo" class="btn-ui" onclick="rimuoviUltimoPunto()">⤺</button>
-    <button class="btn-ui retry" onclick="reset()">↺</button>
+<div id="cam-overlay" class="full-screen-cam">
+    <div id="ai-header">MODALITÀ COSA È</div>
+    
+    <div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
+    
+    <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
+    
+    <video id="v" playsinline autoplay muted></video>
+    <canvas id="preview-canvas" style="display:none;"></canvas>
+    
+    <div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3500; display:none; pointer-events: auto;">
+        <svg id="clothing-shape" style="width:100%; height:100%;"></svg>
+    </div>
+
+    <div id="shutter" onclick="scatta()"></div>
+
+    <div class="controls" id="ui">
+        <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">Fine</button>
+        <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
+        <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">⤺</button>
+        <button class="btn-ui retry" onclick="reset()">↺</button>
+    </div>
 </div>
+
 
 <div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3500; display:none;">
     <svg id="clothing-shape"></svg>
@@ -561,20 +572,23 @@
         });
     }
 
-    // --- INTELLIGENZA ARTIFICIALE (RITAGLIO & RECOG) ---
-   function toggleRecognition() {
+// --- INTELLIGENZA ARTIFICIALE (SISTEMA MANUALE PUNTI) ---
+
+function toggleRecognition() {
     const aiLabel = document.getElementById('ai-label');
     const aiHeader = document.getElementById('ai-header');
 
+    // Cambia stato al tocco del tasto giallo sotto lo shutter
     if (tipoCorrente === "Nessun vestito") {
         tipoCorrente = "Maglia";
-        mostraPuntiScansione(); // Avvia i 12 puntini
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = "MODALITÀ COSA È";
+        aiHeader.style.color = "white";
+        aiLabel.innerText = "RILEVATO: MAGLIA";
+        riconoscimentoAvvenuto = true;
     } else if (tipoCorrente === "Maglia") {
         tipoCorrente = "Pantalone";
-        aiHeader.innerText = "RICONOSCIMENTO...";
-        aiHeader.style.color = "white";
         aiLabel.innerText = "RILEVATO: PANTALONE";
-        riconoscimentoAvvenuto = true;
     } else {
         tipoCorrente = "Nessun vestito";
         aiHeader.style.display = 'none';
@@ -583,147 +597,13 @@
     }
 }
 
-
-    function attivaRitaglio() {
-        if (finalImg.style.display === 'none' || !finalImg.src) return;
-        cropActive = !cropActive;
-        const btn = document.getElementById('btn-crop');
-        
-        if (cropActive) {
-            btn.classList.add('active');
-            const dpr = window.devicePixelRatio || 1;
-            const rect = viewport.getBoundingClientRect();
-            cropCanvas.width = rect.width * dpr;
-            cropCanvas.height = rect.height * dpr;
-            cropCanvas.style.width = rect.width + "px";
-            cropCanvas.style.height = rect.height + "px";
-            ctxCrop.scale(dpr, dpr);
-            cropCanvas.style.display = 'block';
-            initDrawing();
-        } else {
-            btn.classList.remove('active');
-            cropCanvas.style.display = 'none';
-            ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
-        }
-    }
-
-    function initDrawing() {
-        ctxCrop.strokeStyle = "white";
-        ctxCrop.lineWidth = 3;
-        ctxCrop.setLineDash([10, 10]);
-        
-        const getPos = (e) => {
-            const rect = cropCanvas.getBoundingClientRect();
-            return {
-                x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
-                y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
-            };
-        };
-
-        cropCanvas.onmousedown = cropCanvas.ontouchstart = (e) => {
-            isDrawing = true;
-            drawPoints = [];
-            ctxCrop.beginPath();
-            const pos = getPos(e);
-            ctxCrop.moveTo(pos.x, pos.y);
-            drawPoints.push(pos);
-        };
-
-        cropCanvas.onmousemove = cropCanvas.ontouchmove = (e) => {
-            if (!isDrawing) return;
-            e.preventDefault();
-            const pos = getPos(e);
-            ctxCrop.lineTo(pos.x, pos.y);
-            ctxCrop.stroke();
-            drawPoints.push(pos);
-        };
-
-        window.onmouseup = window.ontouchend = () => {
-            if (!isDrawing) return;
-            isDrawing = false;
-            finalImg.classList.add('ai-active');
-            setTimeout(() => {
-                eseguiTaglioManuale();
-                finalImg.classList.remove('ai-active');
-                attivaRitaglio();
-            }, 600);
-        };
-    }
-
-    function eseguiTaglioManuale() {
-        if (drawPoints.length < 3) return;
-        const tempCanvas = document.createElement('canvas');
-        const tCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = finalImg.naturalWidth;
-        tempCanvas.height = finalImg.naturalHeight;
-
-        const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
-        const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
-
-        tCtx.beginPath();
-        tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
-        drawPoints.forEach(p => tCtx.lineTo(p.x * scaleX, p.y * scaleY));
-        tCtx.closePath();
-        tCtx.clip(); 
-        tCtx.drawImage(finalImg, 0, 0);
-
-        finalImg.src = tempCanvas.toDataURL('image/png');
-    }
-
-    function mostraPuntiScansione() {
-    const aiLabel = document.getElementById('ai-label');
-    const aiHeader = document.getElementById('ai-header');
-    
-    aiLabel.innerText = "ANALISI IN CORSO...";
-    
-    // Crea 12 punti di scansione
-    for (let i = 0; i < 12; i++) {
-        const dot = document.createElement('div');
-        dot.className = 'scan-dot';
-        
-        // Distribuzione casuale/circolare al centro della camera
-        const angle = (i / 12) * Math.PI * 2;
-        const x = 50 + Math.cos(angle) * 20 + (Math.random() * 5);
-        const y = 50 + Math.sin(angle) * 25 + (Math.random() * 5);
-        
-        dot.style.left = x + '%';
-        dot.style.top = y + '%';
-        overlay.appendChild(dot);
-
-        // Animazione di apparizione "Apple Style"
-        dot.animate([
-            { transform: 'scale(0)', opacity: 0 },
-            { transform: 'scale(1.2)', opacity: 1 },
-            { transform: 'scale(1)', opacity: 1 }
-        ], { duration: 300, delay: i * 70, fill: 'forwards' });
-    }
-
-    // Dopo 1.5 secondi conferma il riconoscimento
-    setTimeout(() => {
-        // Rimuove i puntini
-        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
-        
-        // Conferma visiva in alto
-        aiHeader.style.display = 'block';
-        aiHeader.innerText = "MAGLIA CONFERMATA";
-        aiHeader.style.color = "#FFD60A"; // Giallo per la conferma
-        
-        // Aggiorna l'etichetta del tasto
-        aiLabel.innerText = "RILEVATO: MAGLIA";
-        riconoscimentoAvvenuto = true;
-
-        // Feedback: piccola vibrazione dell'header
-        aiHeader.animate([
-            { transform: 'translateX(-50%) scale(1)' },
-            { transform: 'translateX(-50%) scale(1.1)' },
-            { transform: 'translateX(-50%) scale(1)' }
-        ], { duration: 200 });
-    }, 1600);
-}
-
 function attivaTouchPunti() {
     const layer = document.getElementById('drawing-layer');
+    // Rimuoviamo eventuali listener vecchi per non duplicare i punti
+    layer.onclick = null; 
+    
     layer.onclick = function(e) {
+        if (!isManualMode) return;
         const rect = layer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -737,34 +617,34 @@ function disegnaPunti() {
     const layer = document.getElementById('drawing-layer');
     const svg = document.getElementById('clothing-shape');
     
-    // Pulisci tutto prima di ridisegnare
+    // Pulisce i puntini grafici vecchi
     layer.querySelectorAll('.manual-dot').forEach(d => d.remove());
-    svg.innerHTML = '';
-
-    // Mostra tasto Fine e Indietro se c'è almeno un punto
+    
+    // Gestione visibilità tasti (Fine appare solo dopo 3 punti per formare una forma)
     document.getElementById('btn-undo').style.display = manualPoints.length > 0 ? 'flex' : 'none';
-    document.getElementById('btn-finish').style.display = manualPoints.length > 0 ? 'flex' : 'none';
+    document.getElementById('btn-finish').style.display = manualPoints.length >= 3 ? 'flex' : 'none';
 
-    let polyPoints = "";
+    let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
 
-    manualPoints.forEach((p, i) => {
-        // Crea il puntino giallo
+    // Disegna la forma e le linee
+    if (manualPoints.length > 2) {
+        // Se ho più di 2 punti, creo un poligono chiuso con riempimento trasparente
+        svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.3); stroke:#FFD60A; stroke-width:3" />`;
+    } else if (manualPoints.length > 1) {
+        // Se ho solo 2 punti, disegno solo la linea
+        svg.innerHTML = `<polyline points="${polyPoints}" style="fill:none; stroke:#FFD60A; stroke-width:3" />`;
+    } else {
+        svg.innerHTML = '';
+    }
+
+    // Ricrea i puntini fisici gialli sopra la linea
+    manualPoints.forEach((p) => {
         const dot = document.createElement('div');
         dot.className = 'manual-dot';
         dot.style.left = p.x + 'px';
         dot.style.top = p.y + 'px';
         layer.appendChild(dot);
-
-        polyPoints += `${p.x},${p.y} `;
     });
-
-    // Disegna le linee di collegamento (usando SVG per semplicità)
-    if (manualPoints.length > 1) {
-        const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-        polyline.setAttribute("points", polyPoints);
-        polyline.setAttribute("style", "fill:none;stroke:#FFD60A;stroke-width:3");
-        svg.appendChild(polyline);
-    }
 }
 
 function rimuoviUltimoPunto() {
@@ -774,15 +654,16 @@ function rimuoviUltimoPunto() {
 
 function concludiPunti() {
     const svg = document.getElementById('clothing-shape');
-    let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
+    const aiHeader = document.getElementById('ai-header');
     
-    // Crea il poligono chiuso e riempilo di colore (es. Giallo semi-trasparente)
-    svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.5);stroke:#FFD60A;stroke-width:3" />`;
+    // Riempimento più solido alla conferma finale
+    let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
+    svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.6); stroke:#FFD60A; stroke-width:4" />`;
 
     const conteggio = manualPoints.length;
     let risultato = "";
 
-    // Logica di riconoscimento basata sui punti
+    // Logica: 12 punti = Maglia, 8 punti = Pantaloni (con tolleranza)
     if (conteggio >= 10 && conteggio <= 14) {
         risultato = "MAGLIA RILEVATA";
         tipoCorrente = "Maglia";
@@ -793,12 +674,13 @@ function concludiPunti() {
         risultato = `RILEVATI ${conteggio} PUNTI`;
     }
 
-    document.getElementById('ai-header').innerText = risultato;
-    document.getElementById('ai-header').style.display = 'block';
+    aiHeader.innerText = risultato;
+    aiHeader.style.color = "#FFD60A";
     
-    // Nascondi tasti disegno e mostra solo OK per confermare
+    // Nasconde i tasti di editing punti
     document.getElementById('btn-finish').style.display = 'none';
     document.getElementById('btn-undo').style.display = 'none';
+    isManualMode = false; // Blocca ulteriori tocchi sulla foto
 }
 
 
