@@ -119,6 +119,48 @@
     filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4));
 }
 
+/* Griglia Catalogo */
+#grid-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    grid-template-columns: repeat(3, 1fr); /* 3 colonne */
+    grid-template-rows: repeat(4, 1fr);    /* 4 righe = 12 quadrati */
+    gap: 2px;
+    padding: 2px;
+    background: #d1d1d6; /* Colore dei bordi tra i quadrati */
+    z-index: 100;
+}
+
+.grid-cell {
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    position: relative;
+}
+
+.grid-cell img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.grid-cell::after {
+    content: '+';
+    font-size: 24px;
+    color: #007AFF;
+    opacity: 0.5;
+}
+
+.grid-cell.filled::after { display: none; }
+
+
 
     </style>
 </head>
@@ -167,13 +209,26 @@
     </svg>
 </div>
 
+<div class="btn-side" onclick="modalitaCatalogo()" id="btn-catalog" title="Ritaglio Multiplo">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="7" width="12" height="12" rx="2" stroke-dasharray="2,2"></rect>
+        <rect x="3" y="3" width="12" height="12" rx="2" fill="white"></rect>
+        <line x1="18" y1="15" x2="18" y2="21" stroke="#007AFF"></line>
+        <line x1="15" y1="18" x2="21" y2="18" stroke="#007AFF"></line>
+    </svg>
+</div>
 
 
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
-     <div class="viewport" id="viewport">
-
+<div class="viewport" id="viewport">
+    <img id="final-photo">
+    
+    <canvas id="crop-canvas"></canvas>
+    
+    <div id="grid-container"></div>
+</div>
 
 
         
@@ -343,11 +398,20 @@ function initDraggableSticker(el) {
         sh.style.display = 'block'; ui.style.display = 'none'; exitBtn.style.display = 'block';
     }
 
-   function accettaFoto() {
+function accettaFoto() {
     const dataUrl = canvas.toDataURL('image/png');
-    finalImg.src = dataUrl;
-    finalImg.style.display = 'block';
-    aggiornaAnteprimaGalleria(dataUrl); // Aggiorna il quadratino
+    
+    // Se siamo in modalità catalogo e abbiamo selezionato un quadratino
+    if (modeCatalogo && targetCell) {
+        targetCell.innerHTML = `<img src="${dataUrl}">`;
+        targetCell.classList.add('filled');
+        targetCell = null; // Resetta il target per il prossimo scatto
+    } else {
+        // Comportamento standard (Foto singola)
+        finalImg.src = dataUrl;
+        finalImg.style.display = 'block';
+        aggiornaAnteprimaGalleria(dataUrl);
+    }
     chiudiCam();
 }
 
@@ -504,6 +568,51 @@ function eseguiTaglioManuale() {
     finalImg.style.transform = "scale(1.05)";
     setTimeout(() => finalImg.style.transform = "scale(1)", 300);
 }
+
+    let modeCatalogo = false;
+    let targetCell = null;
+
+    // Crea i 12 quadrati appena si carica la pagina
+    function creaGriglia() {
+        const container = document.getElementById('grid-container');
+        container.innerHTML = '';
+        for (let i = 0; i < 12; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.onclick = () => scattaPerGriglia(cell);
+            container.appendChild(cell);
+        }
+    }
+    // Esegui subito la creazione
+    creaGriglia();
+
+    function modalitaCatalogo() {
+        modeCatalogo = !modeCatalogo;
+        const btn = document.getElementById('btn-catalog');
+        const grid = document.getElementById('grid-container');
+        
+        if (modeCatalogo) {
+            // Stato Attivo: Blu e mostra griglia
+            btn.style.background = '#007AFF';
+            btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
+            grid.style.display = 'grid';
+            finalImg.style.display = 'none';
+        } else {
+            // Stato Inattivo: Bianco e nasconde griglia
+            btn.style.background = 'white';
+            btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
+            btn.querySelector('line').setAttribute('stroke', '#007AFF');
+            grid.style.display = 'none';
+            if(finalImg.src) finalImg.style.display = 'block';
+        }
+    }
+
+    function scattaPerGriglia(cell) {
+        targetCell = cell;
+        attivaCam();
+    }
+
+
 
 
 </script>
