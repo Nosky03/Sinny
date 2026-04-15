@@ -398,43 +398,31 @@
     const cropCanvas = document.getElementById('crop-canvas');
     const ctxCrop = cropCanvas.getContext('2d');
     const viewport = document.getElementById('viewport');
+    
+    // Elementi AR (Assicurati che siano presenti nell'HTML)
+    const arCanvas = document.getElementById('ai-canvas');
+    const arReticle = document.getElementById('ar-reticle');
+    const btnConfirm = document.getElementById('btn-confirm-point');
+    const btnFinish = document.getElementById('btn-finish-ar');
+    const aiLabel = document.getElementById('ai-label');
+    const aiHeader = document.getElementById('ai-header');
 
     // --- STATO APPLICAZIONE ---
-    let modeRA = false;
     let modeCatalogo = false;
     let drawPoints = []; 
-    let tipoCorrente = "Pantalone"; 
+    let tipoCorrente = "Nessun vestito"; 
     let riconoscimentoAvvenuto = false;
     let targetCell = null;
     let isDrawing = false;
     let cropActive = false;
+    
+    // Stato AR
+    let arPoints = [];
+    let isMapping = false;
 
     // --- ETICHETTE ---
     const etichettePantaloni = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", "Tessuto Close-up", "Orlo Fondo", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
     const etichetteMaglie = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", "Tessuto Close-up", "Dettaglio Polsino", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
-
-    // --- GESTIONE IMMAGINE (GALLERIA) ---
-    function caricaImmagine(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => { 
-            // Se la griglia è aperta, la chiudiamo per vedere la foto
-            if (modeCatalogo) modalitaCatalogo(); 
-            
-            finalImg.src = e.target.result; 
-            finalImg.style.display = 'block'; // Rende visibile l'immagine nello spazio bianco
-            
-            aggiornaAnteprimaGalleria(e.target.result); 
-        };
-        reader.readAsDataURL(file);
-    }
-
-    function aggiornaAnteprimaGalleria(sorgente) {
-        const btnGallery = document.getElementById('btn-gallery');
-        btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
-    }
 
     // --- FOTOCAMERA ---
     async function attivaCam() {
@@ -442,69 +430,54 @@
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             v.srcObject = stream;
             
-            if (!targetCell) {
-                tipoCorrente = "Nessun vestito";
-                riconoscimentoAvvenuto = false;
-            }
-
             overlay.style.display = 'block';
             v.style.display = 'block'; 
             sh.style.display = 'block'; 
             exitBtn.style.display = 'block';
             
-            document.getElementById('ai-label').style.display = targetCell ? 'none' : 'block';
-            document.getElementById('ai-label').innerText = "COSA È?";
-            document.getElementById('ai-header').style.display = 'none';
+            // Se stiamo riempiendo una cella specifica, nascondiamo l'AI label
+            aiLabel.style.display = targetCell ? 'none' : 'block';
+            aiLabel.innerText = "COSA È?";
+            aiHeader.style.display = 'none';
             
             ui.style.display = 'none'; 
             canvas.style.display = 'none';
         } catch (e) { alert("Errore fotocamera: controlla i permessi."); }
     }
 
+    function chiudiCam() {
+        if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+        overlay.style.display = 'none';
+        resetAR();
+    }
+
     function scatta() {
         canvas.width = v.videoWidth; 
         canvas.height = v.videoHeight;
         canvas.getContext('2d').drawImage(v, 0, 0);
-        
         v.style.display = 'none'; 
         canvas.style.display = 'block';
         sh.style.display = 'none'; 
         exitBtn.style.display = 'none'; 
         ui.style.display = 'flex';
-        
-        const header = document.getElementById('ai-header');
-        header.style.display = 'block';
-        header.innerText = (tipoCorrente === "Nessun vestito") ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = (tipoCorrente === "Nessun vestito") ? "FOTO ACQUISITA" : tipoCorrente.toUpperCase();
     }
 
     function accettaFoto() {
         const dataUrl = canvas.toDataURL('image/png');
-        
         if (targetCell) {
             targetCell.innerHTML = `<img src="${dataUrl}">`;
             targetCell.classList.add('filled');
             targetCell = null;
-        } else if (riconoscimentoAvvenuto) {
-            finalImg.style.display = 'none'; 
-            if (!modeCatalogo) modalitaCatalogo(); 
-            aggiornaNomiGriglia();
         } else {
-            if (modeCatalogo) modalitaCatalogo();
             finalImg.src = dataUrl;
             finalImg.style.display = 'block';
+            if (riconoscimentoAvvenuto && !modeCatalogo) modalitaCatalogo();
         }
-
         aggiornaAnteprimaGalleria(dataUrl);
         chiudiCam();
     }
-
-   function chiudiCam() {
-    if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-    overlay.style.display = 'none';
-    // Rimuove eventuali puntini rimasti
-    document.querySelectorAll('.scan-dot').forEach(d => d.remove());
-}
-
 
     function reset() {
         v.style.display = 'block'; 
@@ -514,288 +487,173 @@
         exitBtn.style.display = 'block';
     }
 
-    // --- CATALOGO E GRIGLIA ---
-    function creaGriglia() {
-        const container = document.getElementById('grid-container');
-        container.innerHTML = '';
-        for (let i = 0; i < 12; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            cell.setAttribute('data-label', etichettePantaloni[i]); 
-            cell.onclick = () => { targetCell = cell; attivaCam(); };
-            container.appendChild(cell);
+    // --- LOGICA INTELLIGENZA ARTIFICIALE / AR ---
+    function toggleRecognition() {
+        if (!isMapping) {
+            mostraPuntiScansione(); // Avvia Vortice -> Mappatura
         }
     }
-    creaGriglia();
+
+    function mostraPuntiScansione() {
+        // Reset e preparazione
+        resetAR();
+        aiLabel.innerText = "ANALISI AMBIENTE...";
+
+        // 1. Animazione Vortice (Puntini che ruotano e collassano al centro)
+        const dots = [];
+        const numDots = 8;
+        for (let i = 0; i < numDots; i++) {
+            const d = document.createElement('div');
+            d.className = 'scan-dot';
+            overlay.appendChild(d);
+            dots.push(d);
+        }
+
+        let start = Date.now();
+        function vortexAnimation() {
+            let elapsed = Date.now() - start;
+            if (elapsed < 1000) {
+                dots.forEach((d, i) => {
+                    let angle = (elapsed / 150) + (i * Math.PI / (numDots/2));
+                    let r = 100 * (1 - elapsed/1000);
+                    d.style.left = (window.innerWidth/2 + Math.cos(angle)*r) + 'px';
+                    d.style.top = (window.innerHeight/2 + Math.sin(angle)*r) + 'px';
+                });
+                requestAnimationFrame(vortexAnimation);
+            } else {
+                dots.forEach(d => d.remove());
+                activateARMapping();
+            }
+        }
+        vortexAnimation();
+    }
+
+    function activateARMapping() {
+        isMapping = true;
+        arReticle.style.display = 'block';
+        btnConfirm.style.display = 'flex';
+        aiLabel.innerText = "FISSA I PUNTI (0)";
+        
+        arCanvas.width = window.innerWidth;
+        arCanvas.height = window.innerHeight;
+        
+        renderARLoop();
+    }
+
+    function addARPoint() {
+        // Prende le coordinate dal centro dello schermo (dove sta il mirino)
+        const p = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+        arPoints.push(p);
+
+        // Crea puntino fisso
+        const dot = document.createElement('div');
+        dot.className = 'scan-dot';
+        dot.style.background = '#34c759'; // Verde conferma
+        dot.style.left = p.x + 'px';
+        dot.style.top = p.y + 'px';
+        dot.style.boxShadow = '0 0 10px #34c759';
+        overlay.appendChild(dot);
+
+        aiLabel.innerText = `FISSA I PUNTI (${arPoints.length})`;
+
+        // Mostra tasto fine dopo 4 punti, ma suggerisce 8 per pantaloni / 12 per maglie
+        if (arPoints.length >= 4) btnFinish.style.display = 'block';
+    }
+
+    function renderARLoop() {
+        if (!isMapping) return;
+        const ctx = arCanvas.getContext('2d');
+        ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+
+        if (arPoints.length > 0) {
+            ctx.beginPath();
+            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = "#FFD60A";
+            ctx.lineWidth = 2;
+
+            ctx.moveTo(arPoints[0].x, arPoints[0].y);
+            for(let i = 1; i < arPoints.length; i++) {
+                ctx.lineTo(arPoints[i].x, arPoints[i].y);
+            }
+            
+            // Linea dinamica elastica dal mirino all'ultimo punto
+            ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
+            ctx.stroke();
+        }
+        requestAnimationFrame(renderARLoop);
+    }
+
+    function finishARMapping() {
+        const count = arPoints.length;
+        isMapping = false;
+        
+        // Pulizia UI AR
+        arReticle.style.display = 'none';
+        btnConfirm.style.display = 'none';
+        btnFinish.style.display = 'none';
+
+        // Decisione Algoritmo
+        if (count >= 11) {
+            tipoCorrente = "Maglia";
+        } else {
+            tipoCorrente = "Pantalone";
+        }
+
+        riconoscimentoAvvenuto = true;
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = tipoCorrente.toUpperCase() + " RILEVATA";
+        aiHeader.style.color = "#FFD60A";
+        aiLabel.innerText = "RILEVAMENTO COMPLETATO";
+        
+        aggiornaNomiGriglia();
+        
+        // Scomparsa puntini e linee dopo 2 secondi
+        setTimeout(() => {
+            resetAR();
+        }, 2000);
+    }
+
+    function resetAR() {
+        isMapping = false;
+        arPoints = [];
+        arReticle.style.display = 'none';
+        btnConfirm.style.display = 'none';
+        btnFinish.style.display = 'none';
+        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+        const ctx = arCanvas.getContext('2d');
+        ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+    }
+
+    // --- GRIGLIA E UTILITY ---
+    function aggiornaAnteprimaGalleria(sorgente) {
+        document.getElementById('btn-gallery').innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    }
 
     function modalitaCatalogo() {
         modeCatalogo = !modeCatalogo;
         const btn = document.getElementById('btn-catalog');
         const grid = document.getElementById('grid-container');
-        
         if (modeCatalogo) {
-            btn.style.background = '#007AFF';
-            btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
             grid.style.display = 'grid';
             finalImg.style.display = 'none';
+            btn.style.background = '#007AFF';
         } else {
-            btn.style.background = 'white';
-            btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
-            btn.querySelector('line').setAttribute('stroke', '#007AFF');
             grid.style.display = 'none';
             if(finalImg.src) finalImg.style.display = 'block';
+            btn.style.background = 'white';
         }
     }
 
     function aggiornaNomiGriglia() {
         const cells = document.querySelectorAll('.grid-cell');
-        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : (tipoCorrente === "Pantalone" ? etichettePantaloni : Array(12).fill("Oggetto"));
+        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : etichettePantaloni;
         cells.forEach((cell, i) => {
             if (!cell.classList.contains('filled')) cell.setAttribute('data-label', labels[i] || "Extra");
         });
     }
 
-    // --- INTELLIGENZA ARTIFICIALE (RITAGLIO & RECOG) ---
-   function toggleRecognition() {
-    const aiLabel = document.getElementById('ai-label');
-    const aiHeader = document.getElementById('ai-header');
-
-    if (tipoCorrente === "Nessun vestito") {
-        tipoCorrente = "Maglia";
-        mostraPuntiScansione(); // Avvia i 12 puntini
-    } else if (tipoCorrente === "Maglia") {
-        tipoCorrente = "Pantalone";
-        aiHeader.innerText = "RICONOSCIMENTO...";
-        aiHeader.style.color = "white";
-        aiLabel.innerText = "RILEVATO: PANTALONE";
-        riconoscimentoAvvenuto = true;
-    } else {
-        tipoCorrente = "Nessun vestito";
-        aiHeader.style.display = 'none';
-        aiLabel.innerText = "COSA È?";
-        riconoscimentoAvvenuto = false;
-    }
-}
-
-
-    function attivaRitaglio() {
-        if (finalImg.style.display === 'none' || !finalImg.src) return;
-        cropActive = !cropActive;
-        const btn = document.getElementById('btn-crop');
-        
-        if (cropActive) {
-            btn.classList.add('active');
-            const dpr = window.devicePixelRatio || 1;
-            const rect = viewport.getBoundingClientRect();
-            cropCanvas.width = rect.width * dpr;
-            cropCanvas.height = rect.height * dpr;
-            cropCanvas.style.width = rect.width + "px";
-            cropCanvas.style.height = rect.height + "px";
-            ctxCrop.scale(dpr, dpr);
-            cropCanvas.style.display = 'block';
-            initDrawing();
-        } else {
-            btn.classList.remove('active');
-            cropCanvas.style.display = 'none';
-            ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
-        }
-    }
-
-    function initDrawing() {
-        ctxCrop.strokeStyle = "white";
-        ctxCrop.lineWidth = 3;
-        ctxCrop.setLineDash([10, 10]);
-        
-        const getPos = (e) => {
-            const rect = cropCanvas.getBoundingClientRect();
-            return {
-                x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
-                y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
-            };
-        };
-
-        cropCanvas.onmousedown = cropCanvas.ontouchstart = (e) => {
-            isDrawing = true;
-            drawPoints = [];
-            ctxCrop.beginPath();
-            const pos = getPos(e);
-            ctxCrop.moveTo(pos.x, pos.y);
-            drawPoints.push(pos);
-        };
-
-        cropCanvas.onmousemove = cropCanvas.ontouchmove = (e) => {
-            if (!isDrawing) return;
-            e.preventDefault();
-            const pos = getPos(e);
-            ctxCrop.lineTo(pos.x, pos.y);
-            ctxCrop.stroke();
-            drawPoints.push(pos);
-        };
-
-        window.onmouseup = window.ontouchend = () => {
-            if (!isDrawing) return;
-            isDrawing = false;
-            finalImg.classList.add('ai-active');
-            setTimeout(() => {
-                eseguiTaglioManuale();
-                finalImg.classList.remove('ai-active');
-                attivaRitaglio();
-            }, 600);
-        };
-    }
-
-    function eseguiTaglioManuale() {
-        if (drawPoints.length < 3) return;
-        const tempCanvas = document.createElement('canvas');
-        const tCtx = tempCanvas.getContext('2d');
-        tempCanvas.width = finalImg.naturalWidth;
-        tempCanvas.height = finalImg.naturalHeight;
-
-        const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
-        const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
-
-        tCtx.beginPath();
-        tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
-        drawPoints.forEach(p => tCtx.lineTo(p.x * scaleX, p.y * scaleY));
-        tCtx.closePath();
-        tCtx.clip(); 
-        tCtx.drawImage(finalImg, 0, 0);
-
-        finalImg.src = tempCanvas.toDataURL('image/png');
-    }
-
-let arPoints = [];
-let isMapping = false;
-
-function mostraPuntiScansione() {
-    const aiLabel = document.getElementById('ai-label');
-    const aiHeader = document.getElementById('ai-header');
-    
-    // Reset stati
-    arPoints = [];
-    isMapping = false;
-    document.getElementById('ai-canvas').getContext('2d').clearRect(0, 0, window.innerWidth, window.innerHeight);
-
-    // Animazione Vortice Iniziale
-    const dots = [];
-    for (let i = 0; i < 8; i++) {
-        const d = document.createElement('div');
-        d.className = 'scan-dot';
-        overlay.appendChild(d);
-        dots.push(d);
-    }
-
-    let start = Date.now();
-    function vortex() {
-        let elapsed = Date.now() - start;
-        if (elapsed < 1000) {
-            dots.forEach((d, i) => {
-                let angle = (elapsed / 100) + (i * Math.PI / 4);
-                let r = 80 * (1 - elapsed/1000);
-                d.style.left = (window.innerWidth/2 + Math.cos(angle)*r) + 'px';
-                d.style.top = (window.innerHeight/2 + Math.sin(angle)*r) + 'px';
-            });
-            requestAnimationFrame(vortex);
-        } else {
-            dots.forEach(d => d.remove());
-            startARMode();
-        }
-    }
-    vortex();
-}
-
-function startARMode() {
-    isMapping = true;
-    document.getElementById('ar-reticle').style.display = 'block';
-    document.getElementById('btn-confirm-point').style.display = 'flex';
-    document.getElementById('ai-label').innerText = "MAPPA I PUNTI (0)";
-    
-    // Avvia il loop di disegno per le linee "elastiche"
-    drawARLines();
-}
-
-function addARPoint() {
-    // Salviamo la posizione attuale del mirino (centro schermo)
-    const newPoint = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    arPoints.push(newPoint);
-    
-    // Crea un puntino fisso nel viewport
-    const dot = document.createElement('div');
-    dot.className = 'scan-dot';
-    dot.style.left = newPoint.x + 'px';
-    dot.style.top = newPoint.y + 'px';
-    dot.style.background = '#34c759'; // Verde per i punti fissati
-    overlay.appendChild(dot);
-
-    document.getElementById('ai-label').innerText = `MAPPA I PUNTI (${arPoints.length})`;
-    
-    if (arPoints.length >= 8) {
-        document.getElementById('btn-finish-ar').style.display = 'block';
-    }
-}
-
-function drawARLines() {
-    if (!isMapping) return;
-    const canvas = document.getElementById('ai-canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    if (arPoints.length > 0) {
-        ctx.beginPath();
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = "#FFD60A";
-        ctx.lineWidth = 2;
-
-        // Disegna linee tra i punti fissati
-        ctx.moveTo(arPoints[0].x, arPoints[0].y);
-        for(let i=1; i < arPoints.length; i++) {
-            ctx.lineTo(arPoints[i].x, arPoints[i].y);
-        }
-
-        // Linea elastica verso il mirino centrale
-        ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
-        ctx.stroke();
-    }
-    
-    requestAnimationFrame(drawARLines);
-}
-
-function finishARMapping() {
-    isMapping = false;
-    document.getElementById('ar-reticle').style.display = 'none';
-    document.getElementById('btn-confirm-point').style.display = 'none';
-    document.getElementById('btn-finish-ar').style.display = 'none';
-
-    const count = arPoints.length;
-    let detected = "";
-
-    // Logica decisionale: 8 punti = Pantalone, 12 = Maglia, Altrimenti il più vicino
-    if (count <= 10) {
-        tipoCorrente = "Pantalone";
-        detected = "PANTALONE RILEVATO";
-    } else {
-        tipoCorrente = "Maglia";
-        detected = "MAGLIA RILEVATA";
-    }
-
-    const header = document.getElementById('ai-header');
-    header.innerText = detected;
-    header.style.display = 'block';
-    header.style.color = "#FFD60A";
-    
-    riconoscimentoAvvenuto = true;
-    aggiornaNomiGriglia(); // Aggiorna subito le etichette in base al tipo
-
-    setTimeout(() => {
-        const ctx = document.getElementById('ai-canvas').getContext('2d');
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
-    }, 2000);
-}
-
+    // Caricamento iniziale
+    creaGriglia();
 </script>
 
 </body>
