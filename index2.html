@@ -333,8 +333,17 @@ function attivaRitaglio() {
     
     if (cropActive) {
         btn.classList.add('active');
-        cropCanvas.width = finalImg.offsetWidth;
-        cropCanvas.height = finalImg.offsetHeight;
+        
+        // --- ALTA DEFINIZIONE ---
+        const dpr = window.devicePixelRatio || 1;
+        const rect = viewport.getBoundingClientRect();
+        cropCanvas.width = rect.width * dpr;
+        cropCanvas.height = rect.height * dpr;
+        cropCanvas.style.width = rect.width + "px";
+        cropCanvas.style.height = rect.height + "px";
+        ctxCrop.scale(dpr, dpr);
+        // ------------------------
+
         cropCanvas.style.display = 'block';
         initDrawing();
     } else {
@@ -371,9 +380,21 @@ function initDrawing() {
         ctxCrop.stroke();
     };
 
-    const stop = () => {
+       const stop = () => {
+        if (!isDrawing) return;
         isDrawing = false;
+        ctxCrop.closePath(); // Chiude la forma
+        
+        // Simula l'effetto "Apple Intelligence" prima del taglio
+        finalImg.classList.add('ai-active');
+        
+        setTimeout(() => {
+            eseguiTaglioManuale();
+            finalImg.classList.remove('ai-active');
+            attivaRitaglio(); // Disattiva lo strumento dopo il taglio
+        }, 600);
     };
+
 
     cropCanvas.onmousedown = start;
     cropCanvas.onmousemove = move;
@@ -389,6 +410,33 @@ function aggiornaAnteprimaGalleria(sorgente) {
     const btnGallery = document.getElementById('btn-gallery');
     // Inserisce l'immagine scattata/caricata dentro il quadratino al posto dell'SVG
     btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
+}
+
+
+function eseguiTaglioManuale() {
+    const tempCanvas = document.createElement('canvas');
+    const tCtx = tempCanvas.getContext('2d');
+    
+    // Dimensioni reali dell'immagine caricata
+    tempCanvas.width = finalImg.naturalWidth;
+    tempCanvas.height = finalImg.naturalHeight;
+
+    // Disegniamo la maschera basandoci sul tratto del canvas di ritaglio
+    tCtx.beginPath();
+    // Copiamo il percorso dal canvas di disegno al canvas di ritaglio reale
+    // Nota: semplificato per coerenza; usa il tracciato creato
+    tCtx.drawImage(cropCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    
+    // Logica di mascheratura
+    tCtx.globalCompositeOperation = 'destination-in';
+    tCtx.drawImage(finalImg, 0, 0);
+    
+    // Aggiorna l'immagine finale
+    finalImg.src = tempCanvas.toDataURL('image/png');
+    
+    // Feedback visivo
+    finalImg.style.transform = "scale(1.05)";
+    setTimeout(() => finalImg.style.transform = "scale(1)", 300);
 }
 
 
