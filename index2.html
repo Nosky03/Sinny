@@ -350,7 +350,8 @@
     let longPressTimer;
     let drawPoints = []; // Memorizza le coordinate del ritaglio
     let activeSticker = null;
-   let tipoCorrente = "Pantalone"; // Aggiungi questa riga all'inizio dello script
+   let tipoCorrente = "Nessun vestito"; // Stato iniziale
+let riconoscimentoAvvenuto = false;
 
 
 
@@ -460,18 +461,22 @@ function initDraggableSticker(el) {
 }
 
 
-
-
-   async function attivaCam() {
+async function attivaCam() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         v.srcObject = stream;
+        
+        // Reset stati
+        tipoCorrente = "Nessun vestito";
+        riconoscimentoAvvenuto = false;
+        
         overlay.style.display = 'block';
         v.style.display = 'block'; sh.style.display = 'block'; exitBtn.style.display = 'block';
         
-        // Mostra AI Label
+        // UI Iniziale: Solo tasto giallo
         document.getElementById('ai-label').style.display = 'block';
         document.getElementById('ai-label').innerText = "COSA È?";
+        document.getElementById('ai-label').style.background = "#FFD60A";
         document.getElementById('ai-header').style.display = 'none';
         
         ui.style.display = 'none'; canvas.style.display = 'none';
@@ -481,15 +486,19 @@ function initDraggableSticker(el) {
 function scatta() {
     canvas.width = v.videoWidth; canvas.height = v.videoHeight;
     canvas.getContext('2d').drawImage(v, 0, 0);
+    
     v.style.display = 'none'; canvas.style.display = 'block';
     sh.style.display = 'none'; exitBtn.style.display = 'none'; ui.style.display = 'flex';
     
-    // Mostra Header (V o Riprova)
-    document.getElementById('ai-header').style.display = 'block';
-    document.getElementById('ai-header').innerText = tipoCorrente.toUpperCase();
+    // Mostra Header in alto con il verdetto
+    const header = document.getElementById('ai-header');
+    header.style.display = 'block';
+    header.innerText = tipoCorrente === "Nessun vestito" ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
+    
     document.getElementById('ai-label').style.display = 'none';
 }
 
+  
 
     function reset() {
         v.style.display = 'block'; canvas.style.display = 'none';
@@ -498,34 +507,41 @@ function scatta() {
 
 function accettaFoto() {
     const dataUrl = canvas.toDataURL('image/png');
+    finalImg.src = dataUrl;
+    finalImg.style.display = 'block';
+    aggiornaAnteprimaGalleria(dataUrl);
     
-    if (modeCatalogo && targetCell) {
-        targetCell.innerHTML = `<img src="${dataUrl}">`;
-        targetCell.classList.add('filled');
-        targetCell = null;
-    } else {
-        finalImg.src = dataUrl;
-        finalImg.style.display = 'block';
-        aggiornaAnteprimaGalleria(dataUrl);
-    }
-    
-    // DOPO lo scatto, aggiorna i nomi di TUTTA la griglia in base all'ultimo rilevamento
-    aggiornaNomiGriglia(); 
     chiudiCam();
+
+    // Se è un vestito riconosciuto, attiva automaticamente la griglia quadranti
+    if (riconoscimentoAvvenuto) {
+        setTimeout(() => {
+            if (!modeCatalogo) modalitaCatalogo(); // Apre la griglia
+            aggiornaNomiGriglia(); // Imposta i nomi Pantalone o Maglia
+        }, 500);
+    }
 }
 
 function aggiornaNomiGriglia() {
     const cells = document.querySelectorAll('.grid-cell');
-    const setEtichette = (tipoCorrente === "Maglia") ? etichetteMaglie : etichettePantaloni;
     
+    // Sceglie il set di etichette in base al riconoscimento
+    let setEtichette = [];
+    if (tipoCorrente === "Maglia") {
+        setEtichette = etichetteMaglie;
+    } else if (tipoCorrente === "Pantalone") {
+        setEtichette = etichettePantaloni;
+    } else {
+        // Se non è riconosciuto, mette etichette generiche
+        setEtichette = Array(12).fill("Oggetto");
+    }
+
     cells.forEach((cell, i) => {
+        // Aggiorna solo i quadranti che non hanno già una foto
         if (!cell.classList.contains('filled')) {
-            cell.setAttribute('data-label', setEtichette[i]);
+            cell.setAttribute('data-label', setEtichette[i] || "Extra");
         }
     });
-
-    }
-    chiudiCam();
 }
 
 
@@ -823,20 +839,19 @@ function modalitaCatalogo() {
 }
 
 function toggleRecognition() {
-    const header = document.getElementById('ai-header');
     const label = document.getElementById('ai-label');
     
-    // Alterna tra Maglia e Pantalone
-    tipoCorrente = (tipoCorrente === "Pantalone") ? "Maglia" : "Pantalone";
+    if (tipoCorrente === "Nessun vestito") tipoCorrente = "Pantalone";
+    else if (tipoCorrente === "Pantalone") tipoCorrente = "Maglia";
+    else tipoCorrente = "Nessun vestito";
     
-    header.innerText = tipoCorrente.toUpperCase();
     label.innerText = "RILEVATO: " + tipoCorrente.toUpperCase();
+    riconoscimentoAvvenuto = (tipoCorrente !== "Nessun vestito");
     
-    // Feedback visivo
-    label.style.background = "#34c759"; // Verde al tocco
-    setTimeout(() => label.style.background = "#FFD60A", 500);
+    // Feedback visivo rapido
+    label.style.opacity = "0.5";
+    setTimeout(() => label.style.opacity = "1", 100);
 }
-
 
 
 </script>
