@@ -102,6 +102,24 @@
 }
 
 
+/* Sticker che si solleva e viene trascinato */
+.sticker {
+    position: absolute;
+    z-index: 5000;
+    cursor: grab;
+    pointer-events: auto;
+    transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1), box-shadow 0.2s ease;
+    filter: drop-shadow(0 0 10px rgba(0,0,0,0.3));
+}
+
+.sticker.dragging {
+    transition: none; /* Fluido durante il trascinamento */
+    cursor: grabbing;
+    transform: scale(1.1);
+    filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4));
+}
+
+
     </style>
 </head>
 <body>
@@ -142,9 +160,15 @@
     </svg>
 </div>
 
-        <div class="btn-side" onclick="modalitaRA()" id="btn-ra">
-            R.A.
-        </div>
+     <div class="btn-side" onclick="modalitaRA()" id="btn-ra" title="Ritaglio Automatico">
+    <svg width="34" height="34" viewBox="0 0 24 24" style="overflow: visible;">
+        <circle cx="9" cy="12" r="7" fill="none" stroke="black" stroke-width="2" stroke-dasharray="3,2" />
+        <text x="15" y="21" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="black">A.</text>
+    </svg>
+</div>
+
+
+
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
 
@@ -185,92 +209,114 @@
     let modeRA = false;
     let longPressTimer;
     let drawPoints = []; // Memorizza le coordinate del ritaglio
+    let activeSticker = null;
 
 
-    // --- LOGICA R.A. (Simulazione Apple Intelligence) ---
+    // --- LOGICA R.A. AGGIORNATA ---
     function modalitaRA() {
-        if (finalImg.style.display === 'none') {
+        if (finalImg.style.display === 'none' || finalImg.src === "") {
             alert("Scatta o carica una foto prima!");
             return;
         }
         modeRA = !modeRA;
-        document.getElementById('btn-ra').style.background = modeRA ? '#007AFF' : 'white';
-        document.getElementById('btn-ra').style.color = modeRA ? 'white' : '#007AFF';
-        alert(modeRA ? "Modalità R.A. Attiva: Tieni premuto sul soggetto per ritagliarlo!" : "Modalità R.A. Disattivata");
-    }
-
-    // Gestione pressione prolungata (Long Press)
-    finalImg.addEventListener('touchstart', (e) => {
-        if (!modeRA) return;
-        longPressTimer = setTimeout(() => {
-            finalImg.classList.add('ai-active');
-            // Qui in un'app vera chiameresti l'IA per segmentare l'immagine
-            // Per ora simuliamo il ritaglio automatico dopo 1 secondo
-            setTimeout(eseguiRitaglioAutomatico, 800);
-        }, 600);
-    });
-
-    finalImg.addEventListener('touchend', () => {
-        clearTimeout(longPressTimer);
-        finalImg.classList.remove('ai-active');
-    });
-
-          function eseguiRitaglioAutomatico() {
-        // 1. Prepariamo canvas e coordinate originali
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        const w = finalImg.naturalWidth;
-        const h = finalImg.naturalHeight;
         
-        tempCanvas.width = w;
-        tempCanvas.height = h;
+        const btn = document.getElementById('btn-ra');
+        const circles = btn.querySelectorAll('circle');
+        const texts = btn.querySelectorAll('text');
 
-        // 2. Disegniamo l'immagine originale sul canvas temporaneo per analizzarla
-        tempCtx.drawImage(finalImg, 0, 0, w, h);
-
-        // 3. --- TRUCCO DI SEGMENTAZIONE AVANZATA (Simulazione IA) ---
-        // Recuperiamo i dati dei pixel (RGBA) di tutta l'immagine
-        const imageData = tempCtx.getImageData(0, 0, w, h);
-        const pixels = imageData.data; // È un array enorme: [r,g,b,a, r,g,b,a, ...]
-
-        // Analizziamo ogni pixel per decidere se è sfondo o chiave
-        for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];     // Rosso
-            const g = pixels[i + 1]; // Verde
-            const b = pixels[i + 2]; // Blu
-            
-            // Calcoliamo la luminosità media del pixel
-            const brightness = (r + g + b) / 3;
-
-            // --- SOGLIA DI RITAGLIO ---
-            // Se il pixel è molto chiaro (vicino al bianco dello sfondo, > 200),
-            // lo rendiamo trasparente impostando il canale Alpha (a) a zero.
-            // La chiave metallica è più scura, quindi verrà mantenuta.
-            if (brightness > 200) { 
-                pixels[i + 3] = 0; // Alpha = 0 (Trasparente)
-            }
+        if (modeRA) {
+            // Stato Attivo: Blu con icone bianche
+            btn.style.background = '#007AFF';
+            circles.forEach(c => c.setAttribute('stroke', 'white'));
+            texts.forEach(t => t.setAttribute('fill', 'white'));
+        } else {
+            // Stato Inattivo: Bianco con icone nere
+            btn.style.background = 'white';
+            circles.forEach(c => c.setAttribute('stroke', 'black'));
+            texts.forEach(t => t.setAttribute('fill', 'black'));
         }
-
-        // 4. Mettiamo i pixel modificati (con lo sfondo cancellato) sul canvas
-        tempCtx.putImageData(imageData, 0, 0);
-
-        // 5. Applichiamo il risultato finale come PNG trasparente
-        finalImg.src = tempCanvas.toDataURL('image/png');
-        
-        // 6. Animazione di "distacco" Apple Style (invariata)
-        finalImg.style.transform = "scale(1.1)";
-        finalImg.style.filter = "drop-shadow(0 15px 30px rgba(0,0,0,0.5))";
-        
-        setTimeout(() => {
-            finalImg.style.transform = "scale(1)";
-            finalImg.classList.remove('ai-active');
-        }, 500);
-
-        // Reset interfaccia
-        modeRA = false;
-        document.getElementById('btn-ra').style.background = 'white';
-        document.getElementById('btn-ra').style.color = '#007AFF';
     }
+
+
+function eseguiRitaglioAutomatico(e) {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    const w = finalImg.naturalWidth;
+    const h = finalImg.naturalHeight;
+    tempCanvas.width = w;
+    tempCanvas.height = h;
+
+    tempCtx.drawImage(finalImg, 0, 0, w, h);
+    const imageData = tempCtx.getImageData(0, 0, w, h);
+    const pixels = imageData.data;
+
+    // Logica rimozione sfondo (Soglia luminosità)
+    for (let i = 0; i < pixels.length; i += 4) {
+        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+        if (brightness > 200) pixels[i + 3] = 0;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+
+    // Creazione dello Sticker
+    const sticker = document.createElement('img');
+    sticker.src = tempCanvas.toDataURL('image/png');
+    sticker.className = 'sticker';
+    
+    // Posizionamento iniziale perfetto sopra l'immagine
+    const rect = finalImg.getBoundingClientRect();
+    sticker.style.width = rect.width + 'px';
+    sticker.style.height = rect.height + 'px';
+    sticker.style.left = rect.left + 'px';
+    sticker.style.top = rect.top + 'px';
+
+    document.getElementById('viewport').appendChild(sticker);
+
+    // Animazione sollevamento
+    setTimeout(() => {
+        sticker.style.transform = "scale(1.05) translateY(-10px)";
+    }, 10);
+
+    initDraggableSticker(sticker);
+
+    // Reset interfaccia
+    finalImg.classList.remove('ai-active');
+    modeRA = false;
+    document.getElementById('btn-ra').style.background = 'white';
+    const svgEls = document.getElementById('btn-ra').querySelectorAll('circle, text');
+    svgEls.forEach(el => el.setAttribute(el.tagName === 'circle' ? 'stroke' : 'fill', 'black'));
+}
+
+function initDraggableSticker(el) {
+    let offsetX, offsetY;
+
+    const start = (e) => {
+        const touch = e.touches ? e.touches[0] : e;
+        offsetX = touch.clientX - el.offsetLeft;
+        offsetY = touch.clientY - el.offsetTop;
+        el.classList.add('dragging');
+    };
+
+    const move = (e) => {
+        if (!el.classList.contains('dragging')) return;
+        e.preventDefault();
+        const touch = e.touches ? e.touches[0] : e;
+        el.style.left = (touch.clientX - offsetX) + 'px';
+        el.style.top = (touch.clientY - offsetY) + 'px';
+    };
+
+    const stop = () => {
+        el.classList.remove('dragging');
+    };
+
+    el.onmousedown = start;
+    window.onmousemove = move;
+    window.onmouseup = stop;
+
+    el.ontouchstart = start;
+    el.ontouchmove = move;
+    el.ontouchend = stop;
+}
+
 
 
 
