@@ -119,33 +119,59 @@
     filter: drop-shadow(0 20px 40px rgba(0,0,0,0.4));
 }
 
-/* Griglia Catalogo Aggiornata */
+/* Griglia uniforme: asse X ampio, asse Y compatto */
 #grid-container {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 95%;
     display: none;
+    
+    /* Layout a griglia 3x4 */
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(4, 1fr);
-    gap: 1px;
-    padding: 2px;
-    background: #e5e5ea;
+    
+    /* Gap differenziato: 8px tra le colonne (X), 4px tra le righe (Y) */
+    gap: 4px 8px; 
+    
+    /* Padding bilanciato: 
+       Top: 10px (per non toccare il bordo alto)
+       Right: 10px 
+       Bottom: 40px (per lasciare spazio sicuro in basso)
+       Left: 10px (distanza minima dalla sidebar) 
+    */
+    padding: 10px 10px 40px 10px; 
+    
+    background: #f2f2f7; 
     z-index: 100;
-   padding-bottom: env(safe-area-inset-bottom, 20px); /* Usa lo spazio di sistema se presente */
     box-sizing: border-box;
+    
+    /* Spostamento leggero verso l'alto per compensare la barra dell'iPad/Browser */
+    transform: translateY( 0px);
 }
 
 .grid-cell {
     background: white;
+    border-radius: 12px;
     display: flex;
-    flex-direction: column; /* Per mettere testo sotto il simbolo */
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     cursor: pointer;
     position: relative;
+    border: 1px solid #d1d1d6;
+    
+    /* Rimosso lo scale per occupare tutto lo spazio disponibile in modo uniforme */
+    width: 100%;
+    height: 100%;
+}
+
+/* Effetto al tocco */
+.grid-cell:active {
+    transform: scale(0.92);
+    background: #e5e5ea;
 }
 
 /* Il "+" sottile e nero */
@@ -185,6 +211,39 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     object-fit: cover;
 }
+
+/* Etichetta gialla sotto lo shutter */
+#ai-label {
+    position: absolute;
+    right: 20px;
+    top: calc(50% + 60px); /* Sotto il cerchio shutter */
+    transform: translateY(-50%);
+    background: #FFD60A;
+    color: black;
+    padding: 5px 12px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 12px;
+    z-index: 3200;
+    display: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Titolo riconoscimento in alto */
+#ai-header {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 18px;
+    font-weight: bold;
+    z-index: 3100;
+    display: none;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
 
     </style>
 </head>
@@ -263,6 +322,8 @@
 
 
     <div id="cam-overlay" class="full-screen-cam">
+      <div id="ai-header">RICONOSCIMENTO...</div>
+<div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
         <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
         <video id="v" playsinline autoplay muted></video>
         <canvas id="preview-canvas" style="display:none;"></canvas>
@@ -289,6 +350,8 @@
     let longPressTimer;
     let drawPoints = []; // Memorizza le coordinate del ritaglio
     let activeSticker = null;
+   let tipoCorrente = "Pantalone"; // Aggiungi questa riga all'inizio dello script
+
 
 
     // --- LOGICA R.A. AGGIORNATA ---
@@ -399,23 +462,34 @@ function initDraggableSticker(el) {
 
 
 
-    // --- FUNZIONI CAM E GALLERIA (Invariate) ---
-    async function attivaCam() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-            v.srcObject = stream;
-            overlay.style.display = 'block';
-            v.style.display = 'block'; sh.style.display = 'block'; exitBtn.style.display = 'block';
-            ui.style.display = 'none'; canvas.style.display = 'none';
-        } catch (e) { alert("Accesso negato."); }
-    }
+   async function attivaCam() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        v.srcObject = stream;
+        overlay.style.display = 'block';
+        v.style.display = 'block'; sh.style.display = 'block'; exitBtn.style.display = 'block';
+        
+        // Mostra AI Label
+        document.getElementById('ai-label').style.display = 'block';
+        document.getElementById('ai-label').innerText = "COSA È?";
+        document.getElementById('ai-header').style.display = 'none';
+        
+        ui.style.display = 'none'; canvas.style.display = 'none';
+    } catch (e) { alert("Accesso negato."); }
+}
 
-    function scatta() {
-        canvas.width = v.videoWidth; canvas.height = v.videoHeight;
-        canvas.getContext('2d').drawImage(v, 0, 0);
-        v.style.display = 'none'; canvas.style.display = 'block';
-        sh.style.display = 'none'; exitBtn.style.display = 'none'; ui.style.display = 'flex';
-    }
+function scatta() {
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0);
+    v.style.display = 'none'; canvas.style.display = 'block';
+    sh.style.display = 'none'; exitBtn.style.display = 'none'; ui.style.display = 'flex';
+    
+    // Mostra Header (V o Riprova)
+    document.getElementById('ai-header').style.display = 'block';
+    document.getElementById('ai-header').innerText = tipoCorrente.toUpperCase();
+    document.getElementById('ai-label').style.display = 'none';
+}
+
 
     function reset() {
         v.style.display = 'block'; canvas.style.display = 'none';
@@ -425,16 +499,31 @@ function initDraggableSticker(el) {
 function accettaFoto() {
     const dataUrl = canvas.toDataURL('image/png');
     
-    // Se siamo in modalità catalogo e abbiamo selezionato un quadratino
     if (modeCatalogo && targetCell) {
         targetCell.innerHTML = `<img src="${dataUrl}">`;
         targetCell.classList.add('filled');
-        targetCell = null; // Resetta il target per il prossimo scatto
+        targetCell = null;
     } else {
-        // Comportamento standard (Foto singola)
         finalImg.src = dataUrl;
         finalImg.style.display = 'block';
         aggiornaAnteprimaGalleria(dataUrl);
+    }
+    
+    // DOPO lo scatto, aggiorna i nomi di TUTTA la griglia in base all'ultimo rilevamento
+    aggiornaNomiGriglia(); 
+    chiudiCam();
+}
+
+function aggiornaNomiGriglia() {
+    const cells = document.querySelectorAll('.grid-cell');
+    const setEtichette = (tipoCorrente === "Maglia") ? etichetteMaglie : etichettePantaloni;
+    
+    cells.forEach((cell, i) => {
+        if (!cell.classList.contains('filled')) {
+            cell.setAttribute('data-label', setEtichette[i]);
+        }
+    });
+
     }
     chiudiCam();
 }
@@ -596,13 +685,22 @@ function eseguiTaglioManuale() {
     let modeCatalogo = false;
     let targetCell = null;
 
-   // Nomi suggeriti per vendere pantaloni (10 + 2 personalizzati)
-const etichettePantaloni = [
+ const etichettePantaloni = [
     "Fronte", "Retro", "Etichetta Taglia", 
     "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", 
     "Tessuto Close-up", "Orlo Fondo", "Indossato", 
     "Misure Metro", "Extra 1", "Extra 2"
 ];
+
+const etichetteMaglie = [
+    "Fronte", "Retro", "Etichetta Taglia", 
+    "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", 
+    "Tessuto Close-up", "Dettaglio Polsino", "Indossato", 
+    "Misure Metro", "Extra 1", "Extra 2"
+];
+
+let tipoCorrente = "Pantalone"; // Default
+
 
 function creaGriglia() {
     const container = document.getElementById('grid-container');
@@ -703,18 +801,42 @@ function modalitaCatalogo() {
     modeCatalogo = !modeCatalogo;
     const btn = document.getElementById('btn-catalog');
     const grid = document.getElementById('grid-container');
+    const finalImg = document.getElementById('final-photo');
     
     if (modeCatalogo) {
         btn.style.background = '#007AFF';
-        // ... resto del codice ...
-        
-        // Aggiungiamo un listener temporaneo: se clicchi il centro della viewport (non le celle) raccogli
+        btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
         grid.style.display = 'grid';
-        // Se vuoi un tasto dedicato, puoi crearlo qui o nell'HTML
+        finalImg.style.display = 'none';
+        
+        // Se si tocca lo sfondo della griglia (non una cella), raccoglie le foto
+        grid.onclick = (e) => {
+            if (e.target === grid) raccogliFoto();
+        };
     } else {
-        // ... resto del codice ...
+        btn.style.background = 'white';
+        btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
+        btn.querySelector('line').setAttribute('stroke', '#007AFF');
+        grid.style.display = 'none';
+        if(finalImg.src) finalImg.style.display = 'block';
     }
 }
+
+function toggleRecognition() {
+    const header = document.getElementById('ai-header');
+    const label = document.getElementById('ai-label');
+    
+    // Alterna tra Maglia e Pantalone
+    tipoCorrente = (tipoCorrente === "Pantalone") ? "Maglia" : "Pantalone";
+    
+    header.innerText = tipoCorrente.toUpperCase();
+    label.innerText = "RILEVATO: " + tipoCorrente.toUpperCase();
+    
+    // Feedback visivo
+    label.style.background = "#34c759"; // Verde al tocco
+    setTimeout(() => label.style.background = "#FFD60A", 500);
+}
+
 
 
 </script>
