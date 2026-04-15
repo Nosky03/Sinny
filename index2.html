@@ -13,7 +13,7 @@
         .sidebar { 
             width: 80px; background: #f2f2f7; border-right: 1px solid #d1d1d6; 
             display: flex; flex-direction: column; align-items: center; 
-            justify-content: center; z-index: 2000; gap: 15px;
+            justify-content: center; z-index: 2000; gap: 15px; position: relative;
         }
 
         .btn-side { 
@@ -46,7 +46,7 @@
         
         video, #preview-canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
-/* Menu controlli ( OK/RETRY) dopo scatto */
+/* Menu controlli ( OK/RETRY) dopo scatt */
 .controls { 
     position: absolute; 
     right: 20px; 
@@ -198,7 +198,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+   overflow: visible !important;
     cursor: pointer;
     position: relative;
     border: 1px solid #d1d1d6;
@@ -352,6 +352,34 @@
 #btn-undo { background: #5856d6; order: 3; display: none; }
 #btn-finish { background: #007AFF; order: 0; display: none; }
 
+/* Pillola R.S. sotto il tasto catalogo */
+#rs-pill-container {
+    position: absolute;
+    top: 70px; /* Posizionata esattamente sotto il btn-side del catalogo */
+    width: 60px; /* Stessa larghezza del pulsante sopra */
+    height: 35px;
+    background: #FFD60A; /* Giallo */
+    border-radius: 12px;
+    display: none; /* Nascosta di base */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1900;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.rs-circle {
+    width: 22px;
+    height: 22px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 900;
+    color: black;
+}
 
     </style>
 </head>
@@ -409,6 +437,9 @@
     </svg>
 </div>
 
+<div id="rs-pill-container">
+        <div class="rs-circle">R.S.</div>
+    </div>
 
         <input type="file" id="gallery-input" accept="image/*" onchange="caricaImmagine(event)">
     </div>
@@ -636,24 +667,42 @@
     }
     creaGriglia();
 
-    function modalitaCatalogo() {
-        modeCatalogo = !modeCatalogo;
-        const btn = document.getElementById('btn-catalog');
-        const grid = document.getElementById('grid-container');
+   function modalitaCatalogo() {
+    modeCatalogo = !modeCatalogo;
+    const btn = document.getElementById('btn-catalog');
+    const grid = document.getElementById('grid-container');
+    const rsPill = document.getElementById('rs-pill-container');
+    
+    if (modeCatalogo) {
+        // --- ATTIVAZIONE ---
+        btn.style.background = '#007AFF';
+        btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
+        grid.style.display = 'grid';
+        finalImg.style.display = 'none';
         
-        if (modeCatalogo) {
-            btn.style.background = '#007AFF';
-            btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
-            grid.style.display = 'grid';
-            finalImg.style.display = 'none';
-        } else {
-            btn.style.background = 'white';
-            btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
-            btn.querySelector('line').setAttribute('stroke', '#007AFF');
-            grid.style.display = 'none';
-            if(finalImg.src) finalImg.style.display = 'block';
+        // Mostra la pillola gialla R.S.
+        if (rsPill) rsPill.style.display = 'flex';
+        
+    } else {
+        // --- DISATTIVAZIONE ---
+        btn.style.background = 'white';
+        btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
+        btn.querySelector('line').setAttribute('stroke', '#007AFF');
+        grid.style.display = 'none';
+        
+        // Nasconde la pillola gialla R.S.
+        if (rsPill) rsPill.style.display = 'none';
+
+        // RESET DELLE FOTO SOLLEVATE (Pila di drag)
+        if (dragContainer) {
+            dragContainer.remove();
+            dragContainer = null;
         }
+        isDraggingAll = false;
+
+        if(finalImg.src) finalImg.style.display = 'block';
     }
+}
 
    function aggiornaNomiGriglia(puntiRilevati) {
     const cells = document.querySelectorAll('.grid-cell');
