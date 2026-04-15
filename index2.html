@@ -256,6 +256,48 @@
     transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */
 }
 
+/* Il mirino centrale */
+#ar-reticle {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px; height: 20px;
+    border: 2px solid white;
+    border-radius: 50%;
+    z-index: 4000;
+    display: none;
+    pointer-events: none;
+}
+#ar-reticle::after {
+    content: ''; position: absolute; top: 50%; left: 50%;
+    width: 4px; height: 4px; background: #FFD60A; border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Tasto conferma punto (a destra) */
+#btn-confirm-point {
+    position: absolute;
+    right: 30px; top: 50%;
+    transform: translateY(-50%);
+    width: 70px; height: 70px;
+    background: #007AFF;
+    border-radius: 50%;
+    display: none;
+    align-items: center; justify-content: center;
+    color: white; font-weight: bold; font-size: 20px;
+    z-index: 4100; border: 3px solid white;
+}
+
+/* Tasto Fine (sotto lo shutter) */
+#btn-finish-ar {
+    position: absolute;
+    right: 20px; top: calc(50% + 140px);
+    background: #34c759; color: white;
+    padding: 10px 20px; border-radius: 20px;
+    font-weight: bold; display: none; z-index: 4100;
+}
+
+
     </style>
 </head>
 <body>
@@ -327,6 +369,10 @@
 
 
     <div id="cam-overlay" class="full-screen-cam">
+      <div id="ar-reticle"></div>
+<div id="btn-confirm-point" onclick="addARPoint()">OK</div>
+<div id="btn-finish-ar" onclick="finishARMapping()">FINE</div>
+
       <div id="ai-header">RICONOSCIMENTO...</div>
 <div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
         <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
@@ -618,155 +664,136 @@
         finalImg.src = tempCanvas.toDataURL('image/png');
     }
 
+let arPoints = [];
+let isMapping = false;
+
 function mostraPuntiScansione() {
     const aiLabel = document.getElementById('ai-label');
     const aiHeader = document.getElementById('ai-header');
-    const aiCanvas = document.getElementById('ai-canvas');
-    const ctx = aiCanvas.getContext('2d');
     
-    aiCanvas.width = window.innerWidth;
-    aiCanvas.height = window.innerHeight;
-    aiLabel.innerText = "CALIBRAZIONE SENSORI...";
+    // Reset stati
+    arPoints = [];
+    isMapping = false;
+    document.getElementById('ai-canvas').getContext('2d').clearRect(0, 0, window.innerWidth, window.innerHeight);
 
+    // Animazione Vortice Iniziale
     const dots = [];
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    const radius = 90;
-
-    // 1. Inizializzazione con rotazione ad alta frequenza
-    for (let i = 0; i < 14; i++) { // Aumentati a 14 per più dettaglio
-        const dot = document.createElement('div');
-        dot.className = 'scan-dot';
-        overlay.appendChild(dot);
-        dots.push({ el: dot, angle: (i / 14) * Math.PI * 2, locked: false });
+    for (let i = 0; i < 8; i++) {
+        const d = document.createElement('div');
+        d.className = 'scan-dot';
+        overlay.appendChild(d);
+        dots.push(d);
     }
 
-    let startTime = Date.now();
-    function orbit() {
-        const elapsed = Date.now() - startTime;
+    let start = Date.now();
+    function vortex() {
+        let elapsed = Date.now() - start;
         if (elapsed < 1000) {
-            dots.forEach(d => {
-                const curAngle = d.angle + (elapsed / 150);
-                d.el.style.left = `${centerX + Math.cos(curAngle) * radius}px`;
-                d.el.style.top = `${centerY + Math.sin(curAngle) * radius}px`;
+            dots.forEach((d, i) => {
+                let angle = (elapsed / 100) + (i * Math.PI / 4);
+                let r = 80 * (1 - elapsed/1000);
+                d.style.left = (window.innerWidth/2 + Math.cos(angle)*r) + 'px';
+                d.style.top = (window.innerHeight/2 + Math.sin(angle)*r) + 'px';
             });
-            requestAnimationFrame(orbit);
+            requestAnimationFrame(vortex);
         } else {
-            rilevamentoDinamico();
+            dots.forEach(d => d.remove());
+            startARMode();
         }
     }
-    orbit();
+    vortex();
+}
 
-    // 2. LOGICA TECNOLOGICA: Generazione coordinate in base ai confini
-    function rilevamentoDinamico() {
-        aiLabel.innerText = "ANALISI SCANNER V-RAY...";
-        
-        const w = window.innerWidth;
-        const h = window.innerHeight;
+function startARMode() {
+    isMapping = true;
+    document.getElementById('ar-reticle').style.display = 'block';
+    document.getElementById('btn-confirm-point').style.display = 'flex';
+    document.getElementById('ai-label').innerText = "MAPPA I PUNTI (0)";
+    
+    // Avvia il loop di disegno per le linee "elastiche"
+    drawARLines();
+}
 
-        // Simuliamo il rilevamento dei bordi reali (bounding box dinamica)
-        // Se l'utente inquadra, l'algoritmo "trova" questi punti nel volume
-        const bounds = {
-            top: h * 0.25 + (Math.random() * 20),
-            bottom: h * 0.80 - (Math.random() * 20),
-            left: w * 0.20 + (Math.random() * 30),
-            right: w * 0.80 - (Math.random() * 30),
-            midX: w / 2
-        };
+function addARPoint() {
+    // Salviamo la posizione attuale del mirino (centro schermo)
+    const newPoint = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    arPoints.push(newPoint);
+    
+    // Crea un puntino fisso nel viewport
+    const dot = document.createElement('div');
+    dot.className = 'scan-dot';
+    dot.style.left = newPoint.x + 'px';
+    dot.style.top = newPoint.y + 'px';
+    dot.style.background = '#34c759'; // Verde per i punti fissati
+    overlay.appendChild(dot);
 
-        // Creazione "Skeleton" dinamico basato sul tipo (Maglia)
-        const dynamicShape = [
-            {x: bounds.midX, y: bounds.top},             // Collo Central
-            {x: bounds.left + 40, y: bounds.top + 15},   // Spalla SX
-            {x: bounds.left - 20, y: bounds.top + 100},  // Manica SX (braccio)
-            {x: bounds.left - 10, y: bounds.bottom - 150},// Polso SX
-            {x: bounds.left + 50, y: bounds.bottom - 160},// Ascella SX
-            {x: bounds.left + 45, y: bounds.bottom},     // Fondo SX
-            {x: bounds.right - 45, y: bounds.bottom},    // Fondo DX
-            {x: bounds.right - 50, y: bounds.bottom - 160},// Ascella DX
-            {x: bounds.right + 10, y: bounds.bottom - 150},// Polso DX
-            {x: bounds.right + 20, y: bounds.top + 100}, // Manica DX (braccio)
-            {x: bounds.right - 40, y: bounds.top + 15},  // Spalla DX
-            {x: bounds.midX, y: bounds.top}              // Chiusura
-        ];
-
-        // Spostamento dei punti con "aggancio" magnetico
-        dots.forEach((d, i) => {
-            if (dynamicShape[i]) {
-                d.el.style.transform = "scale(1.5)";
-                d.el.style.background = "#007AFF"; // Blu durante il lock
-                d.el.style.left = `${dynamicShape[i].x}px`;
-                d.el.style.top = `${dynamicShape[i].y}px`;
-            } else {
-                d.el.style.opacity = "0"; // Nascondi punti extra
-            }
-        });
-
-        setTimeout(() => renderTechLines(dynamicShape), 500);
+    document.getElementById('ai-label').innerText = `MAPPA I PUNTI (${arPoints.length})`;
+    
+    if (arPoints.length >= 8) {
+        document.getElementById('btn-finish-ar').style.display = 'block';
     }
+}
 
-    // 3. Rendering Linee con effetto "Neural Link"
-    function renderTechLines(points) {
-        let step = 0;
-        aiLabel.innerText = "STRUTTURA IDENTIFICATA";
+function drawARLines() {
+    if (!isMapping) return;
+    const canvas = document.getElementById('ai-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-        function drawFrame() {
-            ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
-            
-            // Effetto bagliore
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "rgba(0, 122, 255, 0.5)";
-            
-            ctx.beginPath();
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = "#007AFF";
-            ctx.setLineDash([2, 4]); // Linea tecnica sottile
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (arPoints.length > 0) {
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = "#FFD60A";
+        ctx.lineWidth = 2;
 
-            ctx.moveTo(points[0].x, points[0].y);
-            
-            for (let i = 1; i < step; i++) {
-                ctx.lineTo(points[i].x, points[i].y);
-            }
-            
-            ctx.stroke();
-
-            // Disegna piccoli vettori di dati accanto ai punti
-            if (step < points.length) {
-                const p = points[step];
-                ctx.fillStyle = "#007AFF";
-                ctx.font = "8px monospace";
-                ctx.fillText(`LOK_POINT_${step}: ${Math.floor(p.x)}px`, p.x + 10, p.y - 10);
-                
-                step += 0.5;
-                requestAnimationFrame(drawFrame);
-            } else {
-                ctx.setLineDash([]);
-                ctx.stroke();
-                // Chiudi la forma con un riempimento leggero
-                ctx.fillStyle = "rgba(0, 122, 255, 0.05)";
-                ctx.fill();
-                concludiAnalisi();
-            }
+        // Disegna linee tra i punti fissati
+        ctx.moveTo(arPoints[0].x, arPoints[0].y);
+        for(let i=1; i < arPoints.length; i++) {
+            ctx.lineTo(arPoints[i].x, arPoints[i].y);
         }
-        drawFrame();
+
+        // Linea elastica verso il mirino centrale
+        ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
+        ctx.stroke();
+    }
+    
+    requestAnimationFrame(drawARLines);
+}
+
+function finishARMapping() {
+    isMapping = false;
+    document.getElementById('ar-reticle').style.display = 'none';
+    document.getElementById('btn-confirm-point').style.display = 'none';
+    document.getElementById('btn-finish-ar').style.display = 'none';
+
+    const count = arPoints.length;
+    let detected = "";
+
+    // Logica decisionale: 8 punti = Pantalone, 12 = Maglia, Altrimenti il più vicino
+    if (count <= 10) {
+        tipoCorrente = "Pantalone";
+        detected = "PANTALONE RILEVATO";
+    } else {
+        tipoCorrente = "Maglia";
+        detected = "MAGLIA RILEVATA";
     }
 
-    function concludiAnalisi() {
-        // Feedback Apple Intelligence finale
-        aiHeader.style.display = 'block';
-        aiHeader.innerText = "MATCH 99.8% - MAGLIA";
-        aiHeader.style.color = "#34c759";
-        aiLabel.innerText = "DATA ACQUIRED";
-        riconoscimentoAvvenuto = true;
+    const header = document.getElementById('ai-header');
+    header.innerText = detected;
+    header.style.display = 'block';
+    header.style.color = "#FFD60A";
+    
+    riconoscimentoAvvenuto = true;
+    aggiornaNomiGriglia(); // Aggiorna subito le etichette in base al tipo
 
-        setTimeout(() => {
-            ctx.clearRect(0, 0, aiCanvas.width, aiCanvas.height);
-            document.querySelectorAll('.scan-dot').forEach(d => {
-                d.style.transform = "scale(0)";
-                setTimeout(() => d.remove(), 300);
-            });
-        }, 1200);
-    }
+    setTimeout(() => {
+        const ctx = document.getElementById('ai-canvas').getContext('2d');
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+    }, 2000);
 }
 
 </script>
