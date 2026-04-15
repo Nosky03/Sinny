@@ -46,23 +46,48 @@
         
         video, #preview-canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
+/* 2. Allineamento e spaziatura uniforme */
 .controls { 
     position: absolute; 
     right: 20px; 
-    top: calc(50% + 120px); /* Spostati più in basso rispetto al centro e alla label */
+    top: calc(50% + 60px); /* Allineato all'altezza della label gialla */
     display: none; 
     flex-direction: column; 
-    gap: 15px; 
-    z-index: 4100; /* Superiore al layer dei punti */
+    gap: 10px; /* Distanza uguale tra gli elementi */
+    z-index: 4100;
+    align-items: flex-end; /* Allinea a destra come la label */
 }
 
-        .btn-ui { 
-            width: 46px; height: 46px; border-radius: 50%; display: flex; 
-            align-items: center; justify-content: center; font-size: 28px; 
-            color: white; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .ok { background: #34c759; order: 1; }
-        .retry { background: #ff3b30; order: 2; }
+    /* Aspetto standard: Cerchio (per scatto normale) */
+.btn-ui { 
+    width: 46px; 
+    height: 46px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 24px; /* Ridotto leggermente per far stare il testo dopo */
+    color: white; 
+    border: none; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    transition: all 0.2s ease; /* Per un passaggio fluido da cerchio a pillola */
+}
+
+/* Trasformazione in pillola: si attiva solo in modalità "Cosa è" */
+.btn-ui.pill {
+    width: auto; 
+    min-width: 70px; /* Un po' più largo per contenere bene OK/RETRY */
+    height: 32px; 
+    border-radius: 10px;
+    padding: 0 12px;
+    font-size: 12px; /* Font più piccolo per il testo */
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+/* Colori e ordine */
+.ok { background: #34c759; order: 1; }
+.retry { background: #ff3b30; order: 2; }
 
         #shutter { 
             position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
@@ -235,6 +260,12 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
+/* Inseriscilo nel blocco <style> */
+.hide-ai-label {
+    display: none !important;
+}
+
+
 /* Titolo riconoscimento in alto */
 #ai-header {
     position: absolute;
@@ -397,12 +428,10 @@
 
     <div id="shutter" onclick="scatta()"></div>
 
-    <div class="controls" id="ui">
-        <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">Fine</button>
-        <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
-        <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">⤺</button>
-        <button class="btn-ui retry" onclick="reset()">↺</button>
-    </div>
+  <div class="controls" id="ui">
+    <button id="btn-finish" class="btn-ui" style="display:none; background: #007AFF;" onclick="concludiPunti()">FINE</button>
+    <button class="btn-ui ok" onclick="accettaFoto()">OK</button> <button id="btn-undo" class="btn-ui" style="display:none; background: #5856d6;" onclick="rimuoviUltimoPunto()">ANNULLA</button>
+    <button class="btn-ui retry" onclick="reset()">RETRY</button>
 </div>
 
 
@@ -484,7 +513,7 @@
         } catch (e) { alert("Errore fotocamera: controlla i permessi."); }
     }
 
-   function scatta() {
+  function scatta() {
     canvas.width = v.videoWidth; 
     canvas.height = v.videoHeight;
     canvas.getContext('2d').drawImage(v, 0, 0);
@@ -495,11 +524,25 @@
     exitBtn.style.display = 'none'; 
     ui.style.display = 'flex';
 
-    // Se eravamo in modalità "Cosa è" (tipoCorrente non è nullo)
+    const aiLabel = document.getElementById('ai-label');
+    const buttons = document.querySelectorAll('.btn-ui');
+
     if(tipoCorrente !== "Nessun vestito") {
+        // MODALITÀ COSA È
         isManualMode = true;
         document.getElementById('drawing-layer').style.display = 'block';
+        aiLabel.style.display = 'block'; // Resta visibile
+        
+        // Trasforma i bottoni in pillole
+        buttons.forEach(btn => btn.classList.add('pill'));
         attivaTouchPunti();
+    } else {
+        // MODALITÀ SEMPLICE
+        isManualMode = false;
+        aiLabel.style.display = 'none'; // Scompare dopo lo scatto
+        
+        // Mantieni bottoni circolari
+        buttons.forEach(btn => btn.classList.remove('pill'));
     }
 }
 
@@ -634,7 +677,7 @@ function toggleRecognition() {
     }
 }
 
-// Gestione tocchi con sblocco pulsanti automatico dopo 1.5s
+// Gestione tocchi con sblocco più lento (2.5s)
 function attivaTouchPunti() {
     const layer = document.getElementById('drawing-layer');
     layer.onclick = function(e) {
@@ -647,15 +690,12 @@ function attivaTouchPunti() {
         manualPoints.push({x, y});
         disegnaPunti();
 
-        // LOGICA TIMER: Ogni volta che tocchi, i punti hanno la priorità.
-        // Se non tocchi per 1.5 secondi, il layer diventa "trasparente" 
-        // permettendoti di cliccare i pulsanti OK/Retry sotto.
         layer.classList.remove('allow-buttons');
         clearTimeout(cooldownTimer);
         
         cooldownTimer = setTimeout(() => {
             layer.classList.add('allow-buttons');
-        }, 1500); 
+        }, 2500); // Portato a 2.5 secondi
     };
 }
 
