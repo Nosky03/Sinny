@@ -184,6 +184,8 @@
 
     let modeRA = false;
     let longPressTimer;
+    let drawPoints = []; // Memorizza le coordinate del ritaglio
+
 
     // --- LOGICA R.A. (Simulazione Apple Intelligence) ---
     function modalitaRA() {
@@ -360,14 +362,15 @@ function initDrawing() {
     ctxCrop.setLineDash([10, 10]); // Tratteggio: 10px linea, 10px spazio
     ctxCrop.lineCap = "round";
 
-    // Eventi Mouse/Touch
     const start = (e) => {
         isDrawing = true;
+        drawPoints = []; // Resetta i punti
         ctxCrop.beginPath();
         const rect = cropCanvas.getBoundingClientRect();
         const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctxCrop.moveTo(x, y);
+        drawPoints.push({x, y});
     };
 
     const move = (e) => {
@@ -378,6 +381,7 @@ function initDrawing() {
         const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
         ctxCrop.lineTo(x, y);
         ctxCrop.stroke();
+        drawPoints.push({x, y}); // Salva il punto
     };
 
        const stop = () => {
@@ -414,27 +418,43 @@ function aggiornaAnteprimaGalleria(sorgente) {
 
 
 function eseguiTaglioManuale() {
+    if (drawPoints.length < 3) return;
+
     const tempCanvas = document.createElement('canvas');
     const tCtx = tempCanvas.getContext('2d');
     
-    // Dimensioni reali dell'immagine caricata
     tempCanvas.width = finalImg.naturalWidth;
     tempCanvas.height = finalImg.naturalHeight;
 
-    // Disegniamo la maschera basandoci sul tratto del canvas di ritaglio
+    // Rapporto tra dimensione reale immagine e dimensione visualizzata a schermo
+    const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
+    const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
+
+    // 1. Creiamo la maschera basata sui punti disegnati
     tCtx.beginPath();
-    // Copiamo il percorso dal canvas di disegno al canvas di ritaglio reale
-    // Nota: semplificato per coerenza; usa il tracciato creato
-    tCtx.drawImage(cropCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
+    for (let i = 1; i < drawPoints.length; i++) {
+        tCtx.lineTo(drawPoints[i].x * scaleX, drawPoints[i].y * scaleY);
+    }
+    tCtx.closePath();
+
+    // 2. Ritagliamo l'immagine
+    tCtx.clip(); 
+    tCtx.drawImage(finalImg, 0, 0, tempCanvas.width, tempCanvas.height);
     
-    // Logica di mascheratura
-    tCtx.globalCompositeOperation = 'destination-in';
-    tCtx.drawImage(finalImg, 0, 0);
+    // 3. Applichiamo lo sfondo bianco (opzionale, se vuoi trasparenza rimuovi le righe sotto)
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = tempCanvas.width;
+    finalCanvas.height = tempCanvas.height;
+    const fCtx = finalCanvas.getContext('2d');
+    fCtx.fillStyle = "white"; // Sfondo bianco
+    fCtx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    fCtx.drawImage(tempCanvas, 0, 0);
+
+    // Aggiorna l'immagine visualizzata
+    finalImg.src = finalCanvas.toDataURL('image/png');
     
-    // Aggiorna l'immagine finale
-    finalImg.src = tempCanvas.toDataURL('image/png');
-    
-    // Feedback visivo
+    // Feedback Apple Style
     finalImg.style.transform = "scale(1.05)";
     setTimeout(() => finalImg.style.transform = "scale(1)", 300);
 }
