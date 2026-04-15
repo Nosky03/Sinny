@@ -256,6 +256,42 @@
     pointer-events: none;
 }
 
+/* Punti che metterai tu sulla foto */
+.manual-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #FFD60A;
+    border: 2px solid white;
+    border-radius: 50%;
+    z-index: 4000;
+    transform: translate(-50%, -50%);
+}
+
+/* Linee che collegano i punti */
+.conn-line {
+    position: absolute;
+    background: #FFD60A;
+    height: 2px;
+    z-index: 3900;
+    transform-origin: 0 0;
+    pointer-events: none;
+}
+
+/* Poligono colorato finale */
+#clothing-shape {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 3800;
+    pointer-events: none;
+}
+
+/* Tasti extra nella fotocamera */
+#btn-undo { background: #5856d6; order: 3; display: none; }
+#btn-finish { background: #007AFF; order: 0; display: none; }
+
+
     </style>
 </head>
 <body>
@@ -332,7 +368,17 @@
         <video id="v" playsinline autoplay muted></video>
         <canvas id="preview-canvas" style="display:none;"></canvas>
         <div id="shutter" onclick="scatta()"></div>
-        <div class="controls" id="ui">
+       <div class="controls" id="ui">
+    <button id="btn-finish" class="btn-ui" onclick="concludiPunti()">Fine</button>
+    <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
+    <button id="btn-undo" class="btn-ui" onclick="rimuoviUltimoPunto()">⤺</button>
+    <button class="btn-ui retry" onclick="reset()">↺</button>
+</div>
+
+<div id="drawing-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index:3500; display:none;">
+    <svg id="clothing-shape"></svg>
+</div>
+
             <button class="btn-ui ok" onclick="accettaFoto()">✓</button>
             <button class="btn-ui retry" onclick="reset()">↺</button>
         </div>
@@ -361,6 +407,9 @@
     let targetCell = null;
     let isDrawing = false;
     let cropActive = false;
+    let manualPoints = []; // Salva le coordinate dei tuoi tocchi
+    let isManualMode = false; // Capisce se siamo in "Cosa è"
+
 
     // --- ETICHETTE ---
     const etichettePantaloni = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", "Tessuto Close-up", "Orlo Fondo", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
@@ -414,21 +463,25 @@
         } catch (e) { alert("Errore fotocamera: controlla i permessi."); }
     }
 
-    function scatta() {
-        canvas.width = v.videoWidth; 
-        canvas.height = v.videoHeight;
-        canvas.getContext('2d').drawImage(v, 0, 0);
-        
-        v.style.display = 'none'; 
-        canvas.style.display = 'block';
-        sh.style.display = 'none'; 
-        exitBtn.style.display = 'none'; 
-        ui.style.display = 'flex';
-        
-        const header = document.getElementById('ai-header');
-        header.style.display = 'block';
-        header.innerText = (tipoCorrente === "Nessun vestito") ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
+   function scatta() {
+    canvas.width = v.videoWidth; 
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0);
+    
+    v.style.display = 'none'; 
+    canvas.style.display = 'block';
+    sh.style.display = 'none'; 
+    exitBtn.style.display = 'none'; 
+    ui.style.display = 'flex';
+
+    // Se eravamo in modalità "Cosa è" (tipoCorrente non è nullo)
+    if(tipoCorrente !== "Nessun vestito") {
+        isManualMode = true;
+        document.getElementById('drawing-layer').style.display = 'block';
+        attivaTouchPunti();
     }
+}
+
 
     function accettaFoto() {
         const dataUrl = canvas.toDataURL('image/png');
@@ -667,6 +720,87 @@
         ], { duration: 200 });
     }, 1600);
 }
+
+function attivaTouchPunti() {
+    const layer = document.getElementById('drawing-layer');
+    layer.onclick = function(e) {
+        const rect = layer.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        manualPoints.push({x, y});
+        disegnaPunti();
+    };
+}
+
+function disegnaPunti() {
+    const layer = document.getElementById('drawing-layer');
+    const svg = document.getElementById('clothing-shape');
+    
+    // Pulisci tutto prima di ridisegnare
+    layer.querySelectorAll('.manual-dot').forEach(d => d.remove());
+    svg.innerHTML = '';
+
+    // Mostra tasto Fine e Indietro se c'è almeno un punto
+    document.getElementById('btn-undo').style.display = manualPoints.length > 0 ? 'flex' : 'none';
+    document.getElementById('btn-finish').style.display = manualPoints.length > 0 ? 'flex' : 'none';
+
+    let polyPoints = "";
+
+    manualPoints.forEach((p, i) => {
+        // Crea il puntino giallo
+        const dot = document.createElement('div');
+        dot.className = 'manual-dot';
+        dot.style.left = p.x + 'px';
+        dot.style.top = p.y + 'px';
+        layer.appendChild(dot);
+
+        polyPoints += `${p.x},${p.y} `;
+    });
+
+    // Disegna le linee di collegamento (usando SVG per semplicità)
+    if (manualPoints.length > 1) {
+        const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+        polyline.setAttribute("points", polyPoints);
+        polyline.setAttribute("style", "fill:none;stroke:#FFD60A;stroke-width:3");
+        svg.appendChild(polyline);
+    }
+}
+
+function rimuoviUltimoPunto() {
+    manualPoints.pop();
+    disegnaPunti();
+}
+
+function concludiPunti() {
+    const svg = document.getElementById('clothing-shape');
+    let polyPoints = manualPoints.map(p => `${p.x},${p.y}`).join(" ");
+    
+    // Crea il poligono chiuso e riempilo di colore (es. Giallo semi-trasparente)
+    svg.innerHTML = `<polygon points="${polyPoints}" style="fill:rgba(255, 214, 10, 0.5);stroke:#FFD60A;stroke-width:3" />`;
+
+    const conteggio = manualPoints.length;
+    let risultato = "";
+
+    // Logica di riconoscimento basata sui punti
+    if (conteggio >= 10 && conteggio <= 14) {
+        risultato = "MAGLIA RILEVATA";
+        tipoCorrente = "Maglia";
+    } else if (conteggio >= 6 && conteggio <= 9) {
+        risultato = "PANTALONI RILEVATI";
+        tipoCorrente = "Pantalone";
+    } else {
+        risultato = `RILEVATI ${conteggio} PUNTI`;
+    }
+
+    document.getElementById('ai-header').innerText = risultato;
+    document.getElementById('ai-header').style.display = 'block';
+    
+    // Nascondi tasti disegno e mostra solo OK per confermare
+    document.getElementById('btn-finish').style.display = 'none';
+    document.getElementById('btn-undo').style.display = 'none';
+}
+
 
 </script>
 
