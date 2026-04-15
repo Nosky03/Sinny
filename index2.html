@@ -346,12 +346,12 @@
     const cropCanvas = document.getElementById('crop-canvas');
     const ctxCrop = cropCanvas.getContext('2d');
 
-    let modeRA = false;
-    let longPressTimer;
-    let drawPoints = []; // Memorizza le coordinate del ritaglio
-    let activeSticker = null;
-   let tipoCorrente = "Nessun vestito"; // Stato iniziale
+   let modeRA = false;
+let modeCatalogo = false; // Aggiunta
+let drawPoints = []; 
+let tipoCorrente = "Nessun vestito"; 
 let riconoscimentoAvvenuto = false;
+let targetCell = null;
 
 
 
@@ -463,25 +463,35 @@ function initDraggableSticker(el) {
 
 async function attivaCam() {
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+        });
         v.srcObject = stream;
         
-        // Reset stati
-        tipoCorrente = "Nessun vestito";
-        riconoscimentoAvvenuto = false;
-        
+        // Se non stiamo scattando per una cella specifica, resettiamo il riconoscimento
+        if (!targetCell) {
+            tipoCorrente = "Nessun vestito";
+            riconoscimentoAvvenuto = false;
+        }
+
         overlay.style.display = 'block';
-        v.style.display = 'block'; sh.style.display = 'block'; exitBtn.style.display = 'block';
+        v.style.display = 'block'; 
+        sh.style.display = 'block'; 
+        exitBtn.style.display = 'block';
         
-        // UI Iniziale: Solo tasto giallo
-        document.getElementById('ai-label').style.display = 'block';
+        // Mostra il tasto giallo solo se NON stiamo già lavorando dentro la griglia
+        document.getElementById('ai-label').style.display = targetCell ? 'none' : 'block';
         document.getElementById('ai-label').innerText = "COSA È?";
-        document.getElementById('ai-label').style.background = "#FFD60A";
         document.getElementById('ai-header').style.display = 'none';
         
-        ui.style.display = 'none'; canvas.style.display = 'none';
-    } catch (e) { alert("Accesso negato."); }
+        ui.style.display = 'none'; 
+        canvas.style.display = 'none';
+    } catch (e) { 
+        console.error(e);
+        alert("Errore accesso fotocamera. Verifica i permessi."); 
+    }
 }
+
 
 function scatta() {
     canvas.width = v.videoWidth; canvas.height = v.videoHeight;
@@ -507,19 +517,31 @@ function scatta() {
 
 function accettaFoto() {
     const dataUrl = canvas.toDataURL('image/png');
-    finalImg.src = dataUrl;
-    finalImg.style.display = 'block';
-    aggiornaAnteprimaGalleria(dataUrl);
     
-    chiudiCam();
-
-    // Se è un vestito riconosciuto, attiva automaticamente la griglia quadranti
-    if (riconoscimentoAvvenuto) {
-        setTimeout(() => {
-            if (!modeCatalogo) modalitaCatalogo(); // Apre la griglia
-            aggiornaNomiGriglia(); // Imposta i nomi Pantalone o Maglia
-        }, 500);
+    // CASO 1: Scatto dentro un quadrante della griglia
+    if (targetCell) {
+        targetCell.innerHTML = `<img src="${dataUrl}">`;
+        targetCell.classList.add('filled');
+        targetCell = null;
+        chiudiCam();
+        return; 
     }
+
+    // CASO 2: Scatto con Riconoscimento attivo (Mostra Griglia)
+    if (riconoscimentoAvvenuto) {
+        finalImg.style.display = 'none'; // Nasconde la foto singola
+        if (!modeCatalogo) modalitaCatalogo(); // Attiva la griglia
+        aggiornaNomiGriglia();
+    } 
+    // CASO 3: Scatto semplice (Mostra Foto per Ritaglio)
+    else {
+        if (modeCatalogo) modalitaCatalogo(); // Chiude la griglia se era aperta
+        finalImg.src = dataUrl;
+        finalImg.style.display = 'block';
+    }
+
+    aggiornaAnteprimaGalleria(dataUrl);
+    chiudiCam();
 }
 
 function aggiornaNomiGriglia() {
@@ -817,7 +839,6 @@ function modalitaCatalogo() {
     modeCatalogo = !modeCatalogo;
     const btn = document.getElementById('btn-catalog');
     const grid = document.getElementById('grid-container');
-    const finalImg = document.getElementById('final-photo');
     
     if (modeCatalogo) {
         btn.style.background = '#007AFF';
@@ -825,16 +846,15 @@ function modalitaCatalogo() {
         grid.style.display = 'grid';
         finalImg.style.display = 'none';
         
-        // Se si tocca lo sfondo della griglia (non una cella), raccoglie le foto
-        grid.onclick = (e) => {
-            if (e.target === grid) raccogliFoto();
-        };
+        // Se si tocca lo sfondo della griglia, raccoglie le foto
+        grid.onclick = (e) => { if (e.target === grid) raccogliFoto(); };
     } else {
         btn.style.background = 'white';
         btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
         btn.querySelector('line').setAttribute('stroke', '#007AFF');
         grid.style.display = 'none';
-        if(finalImg.src) finalImg.style.display = 'block';
+        // Se c'è una foto scattata senza riconoscimento, la mostra
+        if(finalImg.src && !riconoscimentoAvvenuto) finalImg.style.display = 'block';
     }
 }
 
