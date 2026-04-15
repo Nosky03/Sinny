@@ -244,64 +244,18 @@
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
+/* Puntini di scansione animati */
 .scan-dot {
     position: absolute;
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
     background: #FFD60A;
     border-radius: 50%;
     z-index: 3500;
-    box-shadow: 0 0 10px #FFD60A, 0 0 20px rgba(255, 214, 10, 0.5);
-    border: 1px solid white;
-    pointer-events: none;
-    transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1); /* Transizione fluida per lo spostamento */ 
-    will-change: transform; /* Aiuta il browser a rendere il movimento fluido */
-}
-
-/* Il mirino centrale */
-#ar-reticle {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 20px; height: 20px;
-    border: 2px solid white;
-    border-radius: 50%;
-    z-index: 4000;
-    display: none;
+    box-shadow: 0 0 10px #FFD60A;
     pointer-events: none;
 }
-#ar-reticle::after {
-    content: ''; position: absolute; top: 50%; left: 50%;
-    width: 4px; height: 4px; background: #FFD60A; border-radius: 50%;
-    transform: translate(-50%, -50%);
-}
 
-/* Tasto conferma punto (a destra) */
-#btn-confirm-point {
-    position: absolute;
-    right: 30px; top: 50%;
-    transform: translateY(-50%);
-    width: 70px; height: 70px;
-    background: #007AFF;
-    border-radius: 50%;
-    display: none;
-    align-items: center; justify-content: center;
-    color: white; font-weight: bold; font-size: 20px;
-    z-index: 4100; border: 3px solid white;
-}
-
-/* Tasto Fine (sotto lo shutter) */
-#btn-finish-ar {
-    position: absolute;
-    right: 20px; top: calc(50% + 140px);
-    background: #34c759; color: white;
-    padding: 10px 20px; border-radius: 20px;
-    font-weight: bold; display: none; z-index: 4100;
-}
-
-#ai-canvas {
-    filter: drop-shadow(0 0 5px #FFD60A);
-}
     </style>
 </head>
 <body>
@@ -369,14 +323,9 @@
 </div>
 
 
-<canvas id="ai-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3040; pointer-events: none;"></canvas>
 
 
     <div id="cam-overlay" class="full-screen-cam">
-      <div id="ar-reticle"></div>
-<div id="btn-confirm-point" onclick="addARPoint()">OK</div>
-<div id="btn-finish-ar" onclick="finishARMapping()">FINE</div>
-
       <div id="ai-header">RICONOSCIMENTO...</div>
 <div id="ai-label" onclick="toggleRecognition()">COSA È?</div>
         <button id="exit-cam" onclick="chiudiCam()"><span></span><span></span></button>
@@ -401,200 +350,124 @@
     const finalImg = document.getElementById('final-photo');
     const cropCanvas = document.getElementById('crop-canvas');
     const ctxCrop = cropCanvas.getContext('2d');
-    
-    const arCanvas = document.getElementById('ai-canvas');
-    const arReticle = document.getElementById('ar-reticle');
-    const btnConfirm = document.getElementById('btn-confirm-point');
-    const btnFinish = document.getElementById('btn-finish-ar');
-    const aiLabel = document.getElementById('ai-label');
-    const aiHeader = document.getElementById('ai-header');
+    const viewport = document.getElementById('viewport');
 
     // --- STATO APPLICAZIONE ---
+    let modeRA = false;
     let modeCatalogo = false;
-    let tipoCorrente = "Nessun vestito"; 
+    let drawPoints = []; 
+    let tipoCorrente = "Pantalone"; 
     let riconoscimentoAvvenuto = false;
     let targetCell = null;
-    
-    // Stato AR
-    let arPoints = [];
-    let isMapping = false;
-   let deviceRotation = { alpha: 0, beta: 0, gamma: 0 };
-let initialRotation = null;
+    let isDrawing = false;
+    let cropActive = false;
 
     // --- ETICHETTE ---
     const etichettePantaloni = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Vita", "Tasche Dietro", "Zip / Bottoni", "Tessuto Close-up", "Orlo Fondo", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
     const etichetteMaglie = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", "Tessuto Close-up", "Dettaglio Polsino", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
 
+    // --- GESTIONE IMMAGINE (GALLERIA) ---
+    function caricaImmagine(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => { 
+            // Se la griglia è aperta, la chiudiamo per vedere la foto
+            if (modeCatalogo) modalitaCatalogo(); 
+            
+            finalImg.src = e.target.result; 
+            finalImg.style.display = 'block'; // Rende visibile l'immagine nello spazio bianco
+            
+            aggiornaAnteprimaGalleria(e.target.result); 
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function aggiornaAnteprimaGalleria(sorgente) {
+        const btnGallery = document.getElementById('btn-gallery');
+        btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    }
+
     // --- FOTOCAMERA ---
     async function attivaCam() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
-            });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
             v.srcObject = stream;
+            
+            if (!targetCell) {
+                tipoCorrente = "Nessun vestito";
+                riconoscimentoAvvenuto = false;
+            }
+
             overlay.style.display = 'block';
             v.style.display = 'block'; 
             sh.style.display = 'block'; 
             exitBtn.style.display = 'block';
-            aiLabel.style.display = targetCell ? 'none' : 'block';
-            aiLabel.innerText = "COSA È?";
-            aiHeader.style.display = 'none';
+            
+            document.getElementById('ai-label').style.display = targetCell ? 'none' : 'block';
+            document.getElementById('ai-label').innerText = "COSA È?";
+            document.getElementById('ai-header').style.display = 'none';
+            
             ui.style.display = 'none'; 
             canvas.style.display = 'none';
-        } catch (e) { alert("Errore fotocamera."); }
+        } catch (e) { alert("Errore fotocamera: controlla i permessi."); }
     }
 
-    function chiudiCam() {
-        if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-        overlay.style.display = 'none';
-        resetAR(); // Ritorna tutto normale alla chiusura
+    function scatta() {
+        canvas.width = v.videoWidth; 
+        canvas.height = v.videoHeight;
+        canvas.getContext('2d').drawImage(v, 0, 0);
+        
+        v.style.display = 'none'; 
+        canvas.style.display = 'block';
+        sh.style.display = 'none'; 
+        exitBtn.style.display = 'none'; 
+        ui.style.display = 'flex';
+        
+        const header = document.getElementById('ai-header');
+        header.style.display = 'block';
+        header.innerText = (tipoCorrente === "Nessun vestito") ? "NON RICONOSCIUTO" : tipoCorrente.toUpperCase();
     }
 
-    // --- LOGICA AR (MAPPATURA PUNTI) ---
-    function toggleRecognition() {
-        if (!isMapping) mostraPuntiScansione();
-    }
-
-    function mostraPuntiScansione() {
-        resetAR();
-        aiLabel.innerText = "ANALISI...";
-        sh.style.display = 'none'; // Nascondi scatto durante analisi
-
-        // Animazione Vortice
-        const dots = [];
-        for (let i = 0; i < 8; i++) {
-            const d = document.createElement('div');
-            d.className = 'scan-dot';
-            overlay.appendChild(d);
-            dots.push(d);
+    function accettaFoto() {
+        const dataUrl = canvas.toDataURL('image/png');
+        
+        if (targetCell) {
+            targetCell.innerHTML = `<img src="${dataUrl}">`;
+            targetCell.classList.add('filled');
+            targetCell = null;
+        } else if (riconoscimentoAvvenuto) {
+            finalImg.style.display = 'none'; 
+            if (!modeCatalogo) modalitaCatalogo(); 
+            aggiornaNomiGriglia();
+        } else {
+            if (modeCatalogo) modalitaCatalogo();
+            finalImg.src = dataUrl;
+            finalImg.style.display = 'block';
         }
 
-        let start = Date.now();
-        function vortex() {
-            let elapsed = Date.now() - start;
-            if (elapsed < 1000) {
-                dots.forEach((d, i) => {
-                    let angle = (elapsed / 150) + (i * Math.PI / 4);
-                    let r = 100 * (1 - elapsed/1000);
-                    d.style.left = (window.innerWidth/2 + Math.cos(angle)*r) + 'px';
-                    d.style.top = (window.innerHeight/2 + Math.sin(angle)*r) + 'px';
-                });
-                requestAnimationFrame(vortex);
-            } else {
-                dots.forEach(d => d.remove());
-                startMapping();
-            }
-        }
-        vortex();
+        aggiornaAnteprimaGalleria(dataUrl);
+        chiudiCam();
     }
 
-    function startMapping() {
-        isMapping = true;
-        arReticle.style.display = 'block';
-        btnConfirm.style.display = 'flex';
-        aiLabel.innerText = "MAPPA I PUNTI (0)";
-        arCanvas.width = window.innerWidth;
-        arCanvas.height = window.innerHeight;
-        renderLines();
-    }
-
-   function addARPoint() {
-    // Coordinate esatte del centro mirino
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
-    
-    const p = { x: centerX, y: centerY };
-    arPoints.push(p);
-
-    // Crea il punto visivo
-    const dot = document.createElement('div');
-    dot.className = 'scan-dot';
-    dot.style.background = '#34c759'; // Verde quando confermato
-    dot.style.left = (p.x - 3) + 'px'; // Centra il puntino da 6px
-    dot.style.top = (p.y - 3) + 'px';
-    overlay.appendChild(dot);
-
-    // Feedback aptico (se supportato)
-    if (navigator.vibrate) navigator.vibrate(10);
-
-    aiLabel.innerText = `PUNTI RILEVATI: ${arPoints.length}`;
-    if (arPoints.length >= 4) btnFinish.style.display = 'block';
+   function chiudiCam() {
+    if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+    overlay.style.display = 'none';
+    // Rimuove eventuali puntini rimasti
+    document.querySelectorAll('.scan-dot').forEach(d => d.remove());
 }
 
 
-function renderLines() {
-    if (!isMapping) return;
-    const ctx = arCanvas.getContext('2d');
-    ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
-
-    if (arPoints.length > 0) {
-        ctx.beginPath();
-        ctx.setLineDash([5, 5]); // Linea tratteggiata stile scansione
-        ctx.strokeStyle = "#FFD60A";
-        ctx.lineWidth = 2;
-
-        // 1. Disegna le linee tra i punti già fissati
-        ctx.moveTo(arPoints[0].x, arPoints[0].y);
-        for(let i = 1; i < arPoints.length; i++) {
-            ctx.lineTo(arPoints[i].x, arPoints[i].y);
-        }
-        
-        // 2. LA LINEA ELASTICA: Collega l'ultimo punto fisso al mirino centrale
-        // Questo crea l'effetto "filo" mentre muovi il telefono
-        ctx.lineTo(window.innerWidth / 2, window.innerHeight / 2);
-        
-        ctx.stroke();
-
-        // 3. Se hai almeno 3 punti, chiudi la forma virtualmente verso il primo punto
-        // per mostrare l'area che stai scansionando
-        if (arPoints.length >= 3) {
-            ctx.beginPath();
-            ctx.setLineDash([2, 4]);
-            ctx.strokeStyle = "rgba(255, 214, 10, 0.4)";
-            ctx.moveTo(window.innerWidth / 2, window.innerHeight / 2);
-            ctx.lineTo(arPoints[0].x, arPoints[0].y);
-            ctx.stroke();
-        }
-    }
-    requestAnimationFrame(renderLines);
-}
-
-    function finishARMapping() {
-        isMapping = false;
-        arReticle.style.display = 'none';
-        btnConfirm.style.display = 'none';
-        btnFinish.style.display = 'none';
-        sh.style.display = 'block';
-
-        // Logica riconoscimento basata sul numero di punti
-        tipoCorrente = (arPoints.length >= 10) ? "Maglia" : "Pantalone";
-        
-        aiHeader.style.display = 'block';
-        aiHeader.innerText = tipoCorrente.toUpperCase() + " RILEVATO";
-        aiHeader.style.color = "#FFD60A";
-        riconoscimentoAvvenuto = true;
-        
-        aggiornaNomiGriglia();
-
-        setTimeout(() => {
-            resetAR();
-            aiHeader.style.display = 'none';
-        }, 3000);
+    function reset() {
+        v.style.display = 'block'; 
+        canvas.style.display = 'none';
+        sh.style.display = 'block'; 
+        ui.style.display = 'none'; 
+        exitBtn.style.display = 'block';
     }
 
-    function resetAR() {
-        isMapping = false;
-        arPoints = [];
-        arReticle.style.display = 'none';
-        btnConfirm.style.display = 'none';
-        btnFinish.style.display = 'none';
-        sh.style.display = 'block';
-        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
-        const ctx = arCanvas.getContext('2d');
-        ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
-    }
-
-    // --- FUNZIONI GRIGLIA ---
+    // --- CATALOGO E GRIGLIA ---
     function creaGriglia() {
         const container = document.getElementById('grid-container');
         container.innerHTML = '';
@@ -608,37 +481,192 @@ function renderLines() {
     }
     creaGriglia();
 
+    function modalitaCatalogo() {
+        modeCatalogo = !modeCatalogo;
+        const btn = document.getElementById('btn-catalog');
+        const grid = document.getElementById('grid-container');
+        
+        if (modeCatalogo) {
+            btn.style.background = '#007AFF';
+            btn.querySelectorAll('rect, line').forEach(el => el.setAttribute('stroke', 'white'));
+            grid.style.display = 'grid';
+            finalImg.style.display = 'none';
+        } else {
+            btn.style.background = 'white';
+            btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
+            btn.querySelector('line').setAttribute('stroke', '#007AFF');
+            grid.style.display = 'none';
+            if(finalImg.src) finalImg.style.display = 'block';
+        }
+    }
+
     function aggiornaNomiGriglia() {
         const cells = document.querySelectorAll('.grid-cell');
-        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : etichettePantaloni;
+        let labels = (tipoCorrente === "Maglia") ? etichetteMaglie : (tipoCorrente === "Pantalone" ? etichettePantaloni : Array(12).fill("Oggetto"));
         cells.forEach((cell, i) => {
-            if (!cell.classList.contains('filled')) cell.setAttribute('data-label', labels[i]);
+            if (!cell.classList.contains('filled')) cell.setAttribute('data-label', labels[i] || "Extra");
         });
     }
 
-    // Inizializzazione galleria
-    function aggiornaAnteprimaGalleria(sorgente) {
-        document.getElementById('btn-gallery').innerHTML = `<img src="${sorgente}" style="width:100%; height:100%; object-fit:cover;">`;
-    }
+    // --- INTELLIGENZA ARTIFICIALE (RITAGLIO & RECOG) ---
+   function toggleRecognition() {
+    const aiLabel = document.getElementById('ai-label');
+    const aiHeader = document.getElementById('ai-header');
 
-function attivaSensori() {
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-            .then(response => {
-                if (response == 'granted') window.addEventListener('deviceorientation', handleRotation);
-            });
+    if (tipoCorrente === "Nessun vestito") {
+        tipoCorrente = "Maglia";
+        mostraPuntiScansione(); // Avvia i 12 puntini
+    } else if (tipoCorrente === "Maglia") {
+        tipoCorrente = "Pantalone";
+        aiHeader.innerText = "RICONOSCIMENTO...";
+        aiHeader.style.color = "white";
+        aiLabel.innerText = "RILEVATO: PANTALONE";
+        riconoscimentoAvvenuto = true;
     } else {
-        window.addEventListener('deviceorientation', handleRotation);
+        tipoCorrente = "Nessun vestito";
+        aiHeader.style.display = 'none';
+        aiLabel.innerText = "COSA È?";
+        riconoscimentoAvvenuto = false;
     }
 }
 
-function handleRotation(e) {
-    if (!initialRotation) initialRotation = { a: e.alpha, b: e.beta, g: e.gamma };
-    deviceRotation.alpha = e.alpha - initialRotation.a;
-    deviceRotation.beta = e.beta - initialRotation.b;
-    deviceRotation.gamma = e.gamma - initialRotation.g;
-}
 
+    function attivaRitaglio() {
+        if (finalImg.style.display === 'none' || !finalImg.src) return;
+        cropActive = !cropActive;
+        const btn = document.getElementById('btn-crop');
+        
+        if (cropActive) {
+            btn.classList.add('active');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = viewport.getBoundingClientRect();
+            cropCanvas.width = rect.width * dpr;
+            cropCanvas.height = rect.height * dpr;
+            cropCanvas.style.width = rect.width + "px";
+            cropCanvas.style.height = rect.height + "px";
+            ctxCrop.scale(dpr, dpr);
+            cropCanvas.style.display = 'block';
+            initDrawing();
+        } else {
+            btn.classList.remove('active');
+            cropCanvas.style.display = 'none';
+            ctxCrop.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+        }
+    }
+
+    function initDrawing() {
+        ctxCrop.strokeStyle = "white";
+        ctxCrop.lineWidth = 3;
+        ctxCrop.setLineDash([10, 10]);
+        
+        const getPos = (e) => {
+            const rect = cropCanvas.getBoundingClientRect();
+            return {
+                x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
+                y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+            };
+        };
+
+        cropCanvas.onmousedown = cropCanvas.ontouchstart = (e) => {
+            isDrawing = true;
+            drawPoints = [];
+            ctxCrop.beginPath();
+            const pos = getPos(e);
+            ctxCrop.moveTo(pos.x, pos.y);
+            drawPoints.push(pos);
+        };
+
+        cropCanvas.onmousemove = cropCanvas.ontouchmove = (e) => {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            ctxCrop.lineTo(pos.x, pos.y);
+            ctxCrop.stroke();
+            drawPoints.push(pos);
+        };
+
+        window.onmouseup = window.ontouchend = () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            finalImg.classList.add('ai-active');
+            setTimeout(() => {
+                eseguiTaglioManuale();
+                finalImg.classList.remove('ai-active');
+                attivaRitaglio();
+            }, 600);
+        };
+    }
+
+    function eseguiTaglioManuale() {
+        if (drawPoints.length < 3) return;
+        const tempCanvas = document.createElement('canvas');
+        const tCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = finalImg.naturalWidth;
+        tempCanvas.height = finalImg.naturalHeight;
+
+        const scaleX = tempCanvas.width / cropCanvas.offsetWidth;
+        const scaleY = tempCanvas.height / cropCanvas.offsetHeight;
+
+        tCtx.beginPath();
+        tCtx.moveTo(drawPoints[0].x * scaleX, drawPoints[0].y * scaleY);
+        drawPoints.forEach(p => tCtx.lineTo(p.x * scaleX, p.y * scaleY));
+        tCtx.closePath();
+        tCtx.clip(); 
+        tCtx.drawImage(finalImg, 0, 0);
+
+        finalImg.src = tempCanvas.toDataURL('image/png');
+    }
+
+    function mostraPuntiScansione() {
+    const aiLabel = document.getElementById('ai-label');
+    const aiHeader = document.getElementById('ai-header');
+    
+    aiLabel.innerText = "ANALISI IN CORSO...";
+    
+    // Crea 12 punti di scansione
+    for (let i = 0; i < 12; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'scan-dot';
+        
+        // Distribuzione casuale/circolare al centro della camera
+        const angle = (i / 12) * Math.PI * 2;
+        const x = 50 + Math.cos(angle) * 20 + (Math.random() * 5);
+        const y = 50 + Math.sin(angle) * 25 + (Math.random() * 5);
+        
+        dot.style.left = x + '%';
+        dot.style.top = y + '%';
+        overlay.appendChild(dot);
+
+        // Animazione di apparizione "Apple Style"
+        dot.animate([
+            { transform: 'scale(0)', opacity: 0 },
+            { transform: 'scale(1.2)', opacity: 1 },
+            { transform: 'scale(1)', opacity: 1 }
+        ], { duration: 300, delay: i * 70, fill: 'forwards' });
+    }
+
+    // Dopo 1.5 secondi conferma il riconoscimento
+    setTimeout(() => {
+        // Rimuove i puntini
+        document.querySelectorAll('.scan-dot').forEach(d => d.remove());
+        
+        // Conferma visiva in alto
+        aiHeader.style.display = 'block';
+        aiHeader.innerText = "MAGLIA CONFERMATA";
+        aiHeader.style.color = "#FFD60A"; // Giallo per la conferma
+        
+        // Aggiorna l'etichetta del tasto
+        aiLabel.innerText = "RILEVATO: MAGLIA";
+        riconoscimentoAvvenuto = true;
+
+        // Feedback: piccola vibrazione dell'header
+        aiHeader.animate([
+            { transform: 'translateX(-50%) scale(1)' },
+            { transform: 'translateX(-50%) scale(1.1)' },
+            { transform: 'translateX(-50%) scale(1)' }
+        ], { duration: 200 });
+    }, 1600);
+}
 
 </script>
 
