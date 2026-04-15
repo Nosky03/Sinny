@@ -46,11 +46,11 @@
         
         video, #preview-canvas { width: 100%; height: 100%; object-fit: cover; position: absolute; top: 0; left: 0; }
 
-/* 2. Allineamento e spaziatura uniforme */
+/* Menu controlli ( OK/RETRY) dopo scatto */
 .controls { 
     position: absolute; 
     right: 20px; 
-    top: calc(50% + 60px); /* Allineato all'altezza della label gialla */
+    top: calc(50% + 80px); /* Allineato all'altezza della label gialla */
     display: none; 
     flex-direction: column; 
     gap: 10px; /* Distanza uguale tra gli elementi */
@@ -102,7 +102,7 @@
         #shutter { 
             position: absolute; right: 20px; top: 50%; transform: translateY(-50%);
             width: 85px; height: 85px; border-radius: 50%; border: 6px solid white; 
-            background: rgba(255,255,255,0.2); display: none; z-index: 3050;
+            background: rgba(255,255,255,0.2); display: none; z-index: 3050; margin: 0;
         }
 
         #exit-cam {
@@ -256,7 +256,7 @@
 #ai-label {
     position: absolute;
     right: 20px;
-    top: calc(50% + 60px); /* Sotto il cerchio shutter */
+    top: calc(50% + 55px); /* Sotto il cerchio shutter */
     transform: translateY(-50%);
     background: #FFD60A;
     color: black;
