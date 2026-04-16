@@ -198,7 +198,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-   overflow: visible !important;
+    overflow: hidden !important;
     cursor: pointer;
     position: relative;
     border: 1px solid #d1d1d6;
@@ -206,6 +206,7 @@
     /* Rimosso lo scale per occupare tutto lo spazio disponibile in modo uniforme */
     width: 100%;
     height: 100%;
+    min-height: 0;
 }
 
 /* Effetto al tocco */
@@ -381,6 +382,108 @@
     color: black;
 }
 
+/* Tendina di selezione sopra il quadrante */
+.cell-menu {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    display: flex;
+    gap: 15px;
+    padding: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    z-index: 500;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 1px solid #d1d1d6;
+}
+
+.cell-menu.active {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.menu-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f2f2f7;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.menu-icon:active {
+    background: #e5e5ea;
+}
+
+/* L'overlay deve coprire tutto in modo fluido */
+#fullscreen-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.92); /* Quasi nero */
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(20px); /* Sfocatura profonda */
+    transition: opacity 0.3s ease;
+}
+
+/* L'immagine che "esplode" verso l'utente */
+#fullscreen-img {
+    max-width: 95%;
+    max-height: 90%;
+    object-fit: contain;
+    border-radius: 20px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.7);
+    /* Animazione elastica: sembra che rimbalzi leggermente */
+    animation: zoomInApple 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes zoomInApple {
+    from { 
+        transform: scale(0.7); 
+        opacity: 0; 
+    }
+    to { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+}
+
+#close-fullscreen {
+    position: absolute;
+    top: 40px;
+    right: 20px;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    border-radius: 50%;
+    padding: 10px;
+    color: white;
+}
+
+/* Effetto pressione ultra-rapido */
+.grid-cell.pressed {
+    transform: scale(0.88) !important; /* Leggermente meno estremo per sembrare più naturale */
+    filter: brightness(0.8);
+    /* 0.04s è quasi istantaneo all'occhio umano */
+    transition: transform 0.04s cubic-bezier(0, 0, 0.2, 1); 
+    z-index: 1000;
+    box-shadow: inset 0 0 15px rgba(0,0,0,0.2);
+}
+
+
+
+/* Impedisce al menu di apparire se la cella è piena tramite CSS (sicurezza extra) */
+.grid-cell.filled .cell-menu {
+    display: none !important;
+}
+
+
     </style>
 </head>
 <body>
@@ -476,6 +579,18 @@
 </div>
 
 
+<div id="fullscreen-overlay" onclick="this.style.display='none'">
+    <button id="close-fullscreen">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </button>
+    <img id="fullscreen-img" src="" alt="Full view">
+</div>
+
+
+
 <script>
     // --- RIFERIMENTI DOM ---
     const v = document.getElementById('v');
@@ -507,27 +622,50 @@
     const etichetteMaglie = ["Fronte", "Retro", "Etichetta Taglia", "Dettaglio Collo", "Logo / Ricamo", "Etichetta Lavaggio", "Tessuto Close-up", "Dettaglio Polsino", "Indossato", "Misure Metro", "Extra 1", "Extra 2"];
 
     // --- GESTIONE IMMAGINE (GALLERIA) ---
-    function caricaImmagine(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => { 
-            // Se la griglia è aperta, la chiudiamo per vedere la foto
-            if (modeCatalogo) modalitaCatalogo(); 
-            
-            finalImg.src = e.target.result; 
-            finalImg.style.display = 'block'; // Rende visibile l'immagine nello spazio bianco
-            
-            aggiornaAnteprimaGalleria(e.target.result); 
-        };
-        reader.readAsDataURL(file);
-    }
+   function caricaImmagine(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => { 
+        const dataUrl = e.target.result;
 
-    function aggiornaAnteprimaGalleria(sorgente) {
-        const btnGallery = document.getElementById('btn-gallery');
-        btnGallery.innerHTML = `<img src="${sorgente}" style="width: 100%; height: 100%; object-fit: cover;">`;
-    }
+        // Se abbiamo un targetCell (ovvero abbiamo cliccato dal menu del quadrante)
+        if (targetCell) {
+            targetCell.innerHTML = `<img src="${dataUrl}">`;
+            targetCell.classList.add('filled');
+            
+            // Riaggiungiamo il menu (perché innerHTML lo ha cancellato)
+            creaMenuPerCella(targetCell); 
+            
+            targetCell = null; // Reset
+        } else {
+            // Comportamento standard per il tasto galleria laterale
+            if (modeCatalogo) modalitaCatalogo(); 
+            finalImg.src = dataUrl; 
+            finalImg.style.display = 'block';
+        }
+        
+        aggiornaAnteprimaGalleria(dataUrl); 
+    };
+    reader.readAsDataURL(file);
+}
+
+// Funzione di supporto per ripristinare il menu dopo che la cella è stata riempita
+function creaMenuPerCella(cell) {
+    const menu = document.createElement('div');
+    menu.className = 'cell-menu';
+    menu.innerHTML = `
+        <div class="menu-icon" onclick="event.stopPropagation(); targetCell=this.parentElement.parentElement; attivaCam(); chiudiTuttiMenu();">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+        <div class="menu-icon" onclick="event.stopPropagation(); targetCell=this.parentElement.parentElement; document.getElementById('gallery-input').click(); chiudiTuttiMenu();">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+        </div>
+    `;
+    cell.appendChild(menu);
+}
+
 
     // --- FOTOCAMERA ---
     async function attivaCam() {
@@ -653,21 +791,120 @@
         exitBtn.style.display = 'block';
     }
 
-    // --- CATALOGO E GRIGLIA ---
-    function creaGriglia() {
-        const container = document.getElementById('grid-container');
-        container.innerHTML = '';
-        for (let i = 0; i < 12; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            cell.setAttribute('data-label', etichettePantaloni[i]); 
-            cell.onclick = () => { targetCell = cell; attivaCam(); };
-            container.appendChild(cell);
+// --- LOGICA DI VISUALIZZAZIONE E FLUIDITÀ ---
+
+let lastTap = 0;
+let tapTimeout;
+
+function gestisciToccoCella(cell, event) {
+    event.stopPropagation();
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300; 
+    const TRIGGER_DELAY = 150; 
+    
+    const isFilled = cell.classList.contains('filled');
+
+    if (isFilled) {
+        if (now - lastTap < DOUBLE_TAP_DELAY) {
+            clearTimeout(tapTimeout); 
+            
+            // 1. Feedback visivo "Schiacciata"
+            cell.classList.add('pressed');
+            
+            // 2. Troviamo l'immagine dentro questo quadrante specifico
+            const imgInside = cell.querySelector('img');
+            
+            if (imgInside) {
+                setTimeout(() => {
+                    // Chiamiamo la funzione per aprire il tutto schermo
+                    apriFullscreen(imgInside.src);
+                    cell.classList.remove('pressed');
+                }, TRIGGER_DELAY);
+            }
+            
+            lastTap = 0; 
+            return;
+        } else {
+            chiudiTuttiMenu();
+        }
+    } else {
+        // Logica per cella vuota (Menu)
+        if (now - lastTap < DOUBLE_TAP_DELAY) {
+            clearTimeout(tapTimeout);
+        } else {
+            tapTimeout = setTimeout(() => {
+                chiudiTuttiMenu();
+                const menu = cell.querySelector('.cell-menu');
+                if (menu) menu.classList.add('active');
+            }, TRIGGER_DELAY);
         }
     }
-    creaGriglia();
+    lastTap = now;
+}
 
-   function modalitaCatalogo() {
+// Questa funzione attiva l'overlay che hai già nel tuo HTML
+function apriFullscreen(src) {
+    const overlay = document.getElementById('fullscreen-overlay');
+    const fullImg = document.getElementById('fullscreen-img');
+    
+    if (overlay && fullImg) {
+        fullImg.src = src;
+        overlay.style.display = 'flex'; // Visualizza l'overlay
+    }
+}
+
+// Aggiornamento della creazione griglia per collegare correttamente gli eventi
+function creaGriglia() {
+    const container = document.getElementById('grid-container');
+    container.innerHTML = '';
+    
+    for (let i = 0; i < 12; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'grid-cell';
+        cell.setAttribute('data-label', etichettePantaloni[i] || "OGGETTO"); 
+        
+        const menu = document.createElement('div');
+        menu.className = 'cell-menu';
+        menu.innerHTML = `
+            <div class="menu-icon" onclick="event.stopPropagation(); targetCell=this.parentElement.parentElement; attivaCam(); chiudiTuttiMenu();">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            </div>
+            <div class="menu-icon" onclick="event.stopPropagation(); targetCell=this.parentElement.parentElement; document.getElementById('gallery-input').click(); chiudiTuttiMenu();">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </div>
+        `;
+        
+        cell.appendChild(menu);
+
+        // Collegamento evento: ora gestito dalla funzione intelligente sopra
+     
+cell.onclick = (e) => gestisciToccoCella(cell, e);
+
+        
+        container.appendChild(cell);
+    }
+}
+
+// Funzione di utilità per chiudere i menu aperti
+function chiudiTuttiMenu() {
+    document.querySelectorAll('.cell-menu').forEach(m => m.classList.remove('active'));
+}
+
+// Chiudi se clicchi fuori dalla griglia
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.grid-cell')) chiudiTuttiMenu();
+});
+
+// Funzione di utilità per chiudere i menu aperti
+function chiudiTuttiMenu() {
+    document.querySelectorAll('.cell-menu').forEach(m => m.classList.remove('active'));
+}
+
+// Chiudi se clicchi fuori dalla griglia
+document.addEventListener('click', () => chiudiTuttiMenu());
+
+
+function modalitaCatalogo() {
     modeCatalogo = !modeCatalogo;
     const btn = document.getElementById('btn-catalog');
     const grid = document.getElementById('grid-container');
@@ -680,29 +917,48 @@
         grid.style.display = 'grid';
         finalImg.style.display = 'none';
         
-        // Mostra la pillola gialla R.S.
         if (rsPill) rsPill.style.display = 'flex';
         
     } else {
-        // --- DISATTIVAZIONE ---
+        // --- DISATTIVAZIONE E RESET TOTALE ---
         btn.style.background = 'white';
         btn.querySelectorAll('rect').forEach(el => el.setAttribute('stroke', 'black'));
         btn.querySelector('line').setAttribute('stroke', '#007AFF');
         grid.style.display = 'none';
         
-        // Nasconde la pillola gialla R.S.
         if (rsPill) rsPill.style.display = 'none';
 
-        // RESET DELLE FOTO SOLLEVATE (Pila di drag)
+        // 1. Reset Dragging
         if (dragContainer) {
             dragContainer.remove();
             dragContainer = null;
         }
         isDraggingAll = false;
 
+        // 2. LOGICA DI PULIZIA QUADRANTI (Pulisce foto e resetta scritte)
+        const cells = document.querySelectorAll('.grid-cell');
+        cells.forEach((cell, i) => {
+            // Rimuove l'immagine se presente
+            const img = cell.querySelector('img');
+            if (img) img.remove();
+            
+            // Rimuove la classe 'filled' per far ricomparire il "+" e l'etichetta
+            cell.classList.remove('filled');
+
+            // Imposta le nuove etichette
+            if (i < 10) {
+                cell.setAttribute('data-label', 'OGGETTO');
+            } else if (i === 10) {
+                cell.setAttribute('data-label', 'EXTRA 1');
+            } else if (i === 11) {
+                cell.setAttribute('data-label', 'EXTRA 2');
+            }
+        });
+
         if(finalImg.src) finalImg.style.display = 'block';
     }
 }
+
 
    function aggiornaNomiGriglia(puntiRilevati) {
     const cells = document.querySelectorAll('.grid-cell');
@@ -910,7 +1166,106 @@ document.onpointerup = (e) => {
 creaGriglia();
 setupMultiDrag();
 
+function apriFullscreen(src) {
+    const overlay = document.getElementById('fullscreen-overlay');
+    const fullImg = document.getElementById('fullscreen-img');
+    
+    if (overlay && fullImg) {
+        fullImg.src = src;
+        overlay.style.display = 'flex'; // Lo mostra usando flex per centrare la foto
+    }
+}
 
+
+<script type="module" src="./js/bg-remover.js"></script>
+<script type="module">
+    import { processBackgroundRemoval } from './js/bg-remover.js';
+    window.processBackgroundRemoval = processBackgroundRemoval; 
+</script>
+
+<script>
+    let rsAttivo = false;
+
+    // Colleghiamo il click alla pillola R.S.
+    document.getElementById('rs-pill-container').onclick = function() {
+        rsAttivo = !rsAttivo;
+        
+        // Feedback visivo sulla pillola
+        this.style.background = rsAttivo ? '#34c759' : '#FFD60A'; 
+        const circle = this.querySelector('.rs-circle');
+        circle.style.color = rsAttivo ? 'white' : 'black';
+        circle.style.background = rsAttivo ? '#248a3d' : 'white';
+
+        if (rsAttivo) {
+            eseguiRimozioneSfondoGlobale();
+        } else {
+            ripristinaSfondi();
+        }
+    };
+
+    /**
+     * Algoritmo AI per la rimozione sfondo
+     */
+    async function eseguiRimozioneSfondoGlobale() {
+        const images = document.querySelectorAll('.grid-cell.filled img');
+        
+        if (images.length === 0) {
+            alert("Inserisci prima delle foto nei quadranti!");
+            resetRS();
+            return;
+        }
+
+        for (const img of images) {
+            // Processa solo se non è già stato fatto dall'IA
+            if (!img.dataset.processedByAI) {
+                img.style.transition = "all 0.5s ease";
+                img.classList.add('ai-active'); // Effetto luminoso durante l'attesa
+                
+                try {
+                    // Chiamata alla funzione nel file js/bg-remover.js
+                    await window.processBackgroundRemoval(img);
+                    img.dataset.processedByAI = "true"; 
+                } catch (e) {
+                    console.error("Errore AI:", e);
+                }
+            }
+        }
+    }
+
+    function ripristinaSfondi() {
+        const images = document.querySelectorAll('.grid-cell.filled img');
+        images.forEach(img => {
+            img.classList.remove('ai-active');
+            img.style.filter = "none";
+            // Nota: per tornare all'originale servirebbe un backup della SRC, 
+            // ma per ora rimuoviamo gli effetti.
+        });
+    }
+
+    function resetRS() {
+        rsAttivo = false;
+        const pill = document.getElementById('rs-pill-container');
+        if(pill) {
+            pill.style.background = '#FFD60A';
+            const circle = pill.querySelector('.rs-circle');
+            circle.style.color = 'black';
+            circle.style.background = 'white';
+        }
+    }
+
+    // Integrazione con la funzione caricaImmagine esistente
+    // Intercettiamo il caricamento per applicare R.S. se è attivo
+    const originalCaricaImmagine = window.caricaImmagine;
+    window.caricaImmagine = function(event) {
+        if (typeof originalCaricaImmagine === "function") {
+            originalCaricaImmagine(event);
+        }
+        
+        if (rsAttivo) {
+            // Piccolo delay per permettere al DOM di aggiornarsi con la nuova immagine
+            setTimeout(() => { eseguiRimozioneSfondoGlobale(); }, 1000);
+        }
+    };
 </script>
 
 </body>
