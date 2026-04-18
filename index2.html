@@ -494,6 +494,12 @@
 }
 
 
+
+.btn-side.active {
+    background: #d1d1d6 !important;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+}
+
     </style>
 </head>
 <body>
@@ -641,6 +647,8 @@
     reader.onload = (e) => { 
         const dataUrl = e.target.result;
 
+        document.querySelector('.placeholder-text').style.display = 'none';
+
         // Se abbiamo un targetCell (ovvero abbiamo cliccato dal menu del quadrante)
         if (targetCell) {
             targetCell.innerHTML = `<img src="${dataUrl}">`;
@@ -739,6 +747,8 @@ function creaMenuPerCella(cell) {
 
     function accettaFoto() {
         const dataUrl = canvas.toDataURL('image/png');
+
+        document.querySelector('.placeholder-text').style.display = 'none';
         
         if (targetCell) {
             targetCell.innerHTML = `<img src="${dataUrl}">`;
@@ -1187,98 +1197,198 @@ function apriFullscreen(src) {
     }
 }
 
-
-// QUI MANCAVA IL TAG DI CHIUSURA </script>
-</script> <script type="module" src="./js/bg-remover.js"></script>
+// 1. Chiudiamo correttamente lo script precedente se ancora aperto
+</script>
 
 <script type="module">
     import { processBackgroundRemoval } from './js/bg-remover.js';
-    window.processBackgroundRemoval = processBackgroundRemoval; 
+    window.processBackgroundRemoval = processBackgroundRemoval;
 </script>
 
 <script>
     let rsAttivo = false;
 
-    // Colleghiamo il click alla pillola R.S.
-    document.getElementById('rs-pill-container').onclick = function() {
+    // Gestione click sulla pillola gialla R.S.
+    document.getElementById('rs-pill-container').onclick = async function() {
         rsAttivo = !rsAttivo;
         
-        // Feedback visivo sulla pillola
+        // Feedback Visivo UI (Verde se attivo, Giallo se spento)
         this.style.background = rsAttivo ? '#34c759' : '#FFD60A'; 
         const circle = this.querySelector('.rs-circle');
-        circle.style.color = rsAttivo ? 'white' : 'black';
-        circle.style.background = rsAttivo ? '#248a3d' : 'white';
+        if(circle) {
+            circle.style.color = rsAttivo ? 'white' : 'black';
+            circle.style.background = rsAttivo ? '#248a3d' : 'white';
+        }
 
         if (rsAttivo) {
-            eseguiRimozioneSfondoGlobale();
-        } else {
-            ripristinaSfondi();
+            await eseguiRimozioneSfondoGlobale();
         }
     };
 
     /**
-     * Algoritmo AI per la rimozione sfondo
+     * Scansiona i quadranti e avvia l'IA solo dove necessario
      */
     async function eseguiRimozioneSfondoGlobale() {
         const images = document.querySelectorAll('.grid-cell.filled img');
         
         if (images.length === 0) {
-            alert("Inserisci prima delle foto nei quadranti!");
+            alert("Nessuna foto trovata nei quadranti!");
             resetRS();
             return;
         }
 
+        // Ciclo su tutte le foto caricate nel catalogo
         for (const img of images) {
-            // Processa solo se non è già stato fatto dall'IA
+            // Evita di processare due volte la stessa immagine
             if (!img.dataset.processedByAI) {
-                img.style.transition = "all 0.5s ease";
-                img.classList.add('ai-active'); // Effetto luminoso durante l'attesa
-                
                 try {
-                    // Chiamata alla funzione nel file js/bg-remover.js
+                    // Chiamata alla funzione "PhotoRoom Precision" nel file esterno
                     await window.processBackgroundRemoval(img);
                     img.dataset.processedByAI = "true"; 
                 } catch (e) {
-                    console.error("Errore AI:", e);
+                    console.error("Errore durante l'elaborazione del quadrante:", e);
                 }
             }
         }
     }
 
-    function ripristinaSfondi() {
-        const images = document.querySelectorAll('.grid-cell.filled img');
-        images.forEach(img => {
-            img.classList.remove('ai-active');
-            img.style.filter = "none";
-            // Nota: per tornare all'originale servirebbe un backup della SRC, 
-            // ma per ora rimuoviamo gli effetti.
-        });
-    }
-
+    /**
+     * Reset dello stato del pulsante
+     */
     function resetRS() {
         rsAttivo = false;
         const pill = document.getElementById('rs-pill-container');
         if(pill) {
             pill.style.background = '#FFD60A';
             const circle = pill.querySelector('.rs-circle');
-            circle.style.color = 'black';
-            circle.style.background = 'white';
+            if(circle) {
+                circle.style.color = 'black';
+                circle.style.background = 'white';
+            }
         }
     }
 
-    // Integrazione con la funzione caricaImmagine esistente
-    // Intercettiamo il caricamento per applicare R.S. se è attivo
+    // Intercettiamo il caricamento di nuove immagini per pulirle istantaneamente se R.S. è ON
     const originalCaricaImmagine = window.caricaImmagine;
     window.caricaImmagine = function(event) {
         if (typeof originalCaricaImmagine === "function") {
             originalCaricaImmagine(event);
         }
         
+        // Se il tasto R.S. è attivo, pulisce la foto appena appare nel quadrante
         if (rsAttivo) {
-            // Piccolo delay per permettere al DOM di aggiornarsi con la nuova immagine
-            setTimeout(() => { eseguiRimozioneSfondoGlobale(); }, 1000);
+            setTimeout(() => { eseguiRimozioneSfondoGlobale(); }, 800);
         }
     };
+
+
+let isCropping = false;
+let puntiRitaglio = []; // Memorizza il percorso del dito
+
+function attivaRitaglio() {
+    if (finalImg.style.display === 'none' || !finalImg.src) {
+        alert("Carica o scatta una foto prima!");
+        return;
+    }
+
+    cropActive = !cropActive;
+    const btn = document.getElementById('btn-crop');
+
+    if (cropActive) {
+        cropCanvas.style.display = 'block';
+        btn.classList.add('active');
+        puntiRitaglio = []; // Reset punti
+        setupCropEventsFreehand();
+        aggiornaCanvasRitaglio();
+    } else {
+        cropCanvas.style.display = 'none';
+        btn.classList.remove('active');
+    }
+}
+
+function setupCropEventsFreehand() {
+    cropCanvas.onpointerdown = (e) => {
+        isCropping = true;
+        puntiRitaglio = [];
+        const rect = cropCanvas.getBoundingClientRect();
+        puntiRitaglio.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    };
+
+    cropCanvas.onpointermove = (e) => {
+        if (!isCropping) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        puntiRitaglio.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        disegnaTracciatoDito();
+    };
+
+    cropCanvas.onpointerup = () => {
+        if (!isCropping) return;
+        isCropping = false;
+        if (puntiRitaglio.length > 3) {
+            eseguiRitaglioSfondoBianco();
+        }
+    };
+}
+
+// Disegna i "trattini" mentre muovi il dito
+function disegnaTracciatoDito() {
+    cropCanvas.width = finalImg.clientWidth;
+    cropCanvas.height = finalImg.clientHeight;
+    
+    // Scuriamo leggermente l'esterno
+    ctxCrop.fillStyle = "rgba(0,0,0,0.3)";
+    ctxCrop.fillRect(0, 0, cropCanvas.width, cropCanvas.height);
+
+    ctxCrop.beginPath();
+    ctxCrop.setLineDash([5, 5]); // Effetto trattini
+    ctxCrop.strokeStyle = "white";
+    ctxCrop.lineWidth = 3;
+
+    if (puntiRitaglio.length > 0) {
+        ctxCrop.moveTo(puntiRitaglio[0].x, puntiRitaglio[0].y);
+        for (let i = 1; i < puntiRitaglio.length; i++) {
+            ctxCrop.lineTo(puntiRitaglio[i].x, puntiRitaglio[i].y);
+        }
+    }
+    ctxCrop.stroke();
+}
+
+function eseguiRitaglioSfondoBianco() {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Usiamo le dimensioni reali della foto originale
+    tempCanvas.width = finalImg.naturalWidth;
+    tempCanvas.height = finalImg.naturalHeight;
+
+    const scaleX = finalImg.naturalWidth / finalImg.clientWidth;
+    const scaleY = finalImg.naturalHeight / finalImg.clientHeight;
+
+    // 1. Riempiamo tutto di BIANCO
+    tempCtx.fillStyle = "white";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+    // 2. Creiamo la maschera basata sui punti del dito
+    tempCtx.beginPath();
+    tempCtx.moveTo(puntiRitaglio[0].x * scaleX, puntiRitaglio[0].y * scaleY);
+    for (let i = 1; i < puntiRitaglio.length; i++) {
+        tempCtx.lineTo(puntiRitaglio[i].x * scaleX, puntiRitaglio[i].y * scaleY);
+    }
+    tempCtx.closePath();
+
+    // 3. Ritagliamo (clip) in modo che la foto appaia solo dentro il tracciato
+    tempCtx.clip();
+
+    // 4. Disegniamo la foto originale sopra lo sfondo bianco (apparirà solo nel clip)
+    tempCtx.drawImage(finalImg, 0, 0, tempCanvas.width, tempCanvas.height);
+
+    // 5. Applichiamo il risultato
+    finalImg.src = tempCanvas.toDataURL("image/jpeg", 0.9);
+    
+    // Chiudiamo la modalità ritaglio
+    attivaRitaglio();
+}
+
 </script>
 
 </body>
