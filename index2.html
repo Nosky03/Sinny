@@ -5,25 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Sinny Cam UI - R.A. Edition</title>
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: none;}
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: white; font-family: -apple-system, sans-serif; }
         
         #app { display: flex; height: 100vh; width: 100vw; }
         
         .sidebar { 
-            width: 80px; background: #f2f2f7; border-right: 1px solid #d1d1d6; 
+            width: 80px; background: white; border-right: 1px solid #d1d1d6; 
             display: flex; flex-direction: column; align-items: center; 
             justify-content: center; z-index: 2000; gap: 15px; position: relative;
         }
 
         .btn-side { 
-            width: 60px; height: 60px; background: white; border-radius: 15px; 
-            border: 1px solid #c6c6c8; display: flex; align-items: center; 
+            width: 46px; height: 46px; background: white; border-radius: 15px; 
+            border: none; display: flex; align-items: center; 
             justify-content: center; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            font-weight: bold; font-size: 14px; color: #007AFF;
+            font-weight: 300; font-size: 12px; color: black;
         }
 
-        .viewport { flex: 1; background: white; position: relative; overflow: hidden; }
+        .viewport { flex: 1; background: white; position: relative; overflow: hidden; display: flex;  align-items: center; justify-content: center;}
+        
+        .placeholder-text {
+            font-family: -apple-system, sans-serif;
+            font-weight: 300; /* Sottile come i pulsanti */
+            font-size: 24px;
+            color: #8e8e93; /* Un grigio neutro elegante */
+            position: absolute; /* Così la foto potrà coprirlo quando apparirà */
+            z-index: 1;
+        }
+
 
         #final-photo { 
             width: 100%; height: 100%; object-fit: cover; display: none; 
@@ -548,6 +558,7 @@
     </div>
 
 <div class="viewport" id="viewport">
+    <div class="placeholder-text">Spazio Fotografia</div>
     <img id="final-photo">
     <canvas id="crop-canvas"></canvas>
     <div id="grid-container"></div>
